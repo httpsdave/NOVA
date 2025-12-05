@@ -9,6 +9,7 @@ import '../providers/theme_provider.dart';
 import 'note_editor_screen.dart';
 import 'trash_screen.dart';
 import 'notebooks_screen.dart';
+import 'security_settings_screen.dart';
 
 class NotesScreen extends StatefulWidget {
   const NotesScreen({super.key});
@@ -312,6 +313,19 @@ class _NotesScreenState extends State<NotesScreen> {
                     builder: (context) => const TrashScreen(),
                   ),
                 ).then((_) => _loadNotes()); // Reload notes when returning
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.lock_outline),
+              title: const Text('Security'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const SecuritySettingsScreen(),
+                  ),
+                );
               },
             ),
             const Divider(),

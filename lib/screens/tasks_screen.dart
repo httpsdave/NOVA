@@ -95,11 +95,13 @@ class _TasksScreenState extends State<TasksScreen> {
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
           title: Text(task == null ? 'New Task' : 'Edit Task'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
+          content: SizedBox(
+            width: MediaQuery.of(context).size.width * 0.9,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
                 TextField(
                   controller: titleController,
                   decoration: const InputDecoration(
@@ -232,6 +234,7 @@ class _TasksScreenState extends State<TasksScreen> {
                 ),
               ],
             ),
+          ),
           ),
           actions: [
             TextButton(
