@@ -151,6 +151,8 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
         backgroundColor: backgroundColor,
         appBar: AppBar(
           backgroundColor: backgroundColor,
+          elevation: 0.5,
+          shadowColor: Colors.black.withValues(alpha: 0.1),
           leading: IconButton(
             icon: const Icon(Icons.arrow_back),
             onPressed: () async {
@@ -160,12 +162,13 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
           actions: [
             if (_reminderDateTime != null)
               IconButton(
-                icon: const Icon(Icons.notifications_active),
+                icon: const Icon(Icons.notifications_active_rounded, size: 22),
                 onPressed: _removeReminder,
                 tooltip: 'Remove reminder',
+                color: const Color(0xFF2DBD6C),
               ),
             IconButton(
-              icon: const Icon(Icons.alarm_add),
+              icon: const Icon(Icons.alarm_add_rounded, size: 22),
               onPressed: _selectReminderDateTime,
               tooltip: 'Set reminder',
             ),
@@ -176,12 +179,21 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
           children: [
             // Color selector
             Container(
-              height: 50,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
+              height: 56,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF1F1F1F) : Colors.white,
+                border: Border(
+                  bottom: BorderSide(
+                    color: isDark ? Colors.grey.shade800 : Colors.grey.shade200,
+                    width: 0.5,
+                  ),
+                ),
+              ),
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
                 itemCount: widget.availableColors.length,
-                separatorBuilder: (context, index) => const SizedBox(width: 12),
+                separatorBuilder: (context, index) => const SizedBox(width: 10),
                 itemBuilder: (context, index) {
                   final color = widget.availableColors[index];
                   final colorInt = color.value;
@@ -197,25 +209,34 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
                       });
                     },
                     child: Container(
-                      width: 40,
-                      height: 40,
+                      width: 36,
+                      height: 36,
                       decoration: BoxDecoration(
                         color: displayColor,
                         shape: BoxShape.circle,
                         border: Border.all(
                           color: isSelected
-                              ? Theme.of(context).colorScheme.primary
-                              : Colors.grey.shade300,
-                          width: isSelected ? 3 : 1,
+                              ? const Color(0xFF2DBD6C)
+                              : (isDark ? Colors.grey.shade700 : Colors.grey.shade300),
+                          width: isSelected ? 2.5 : 1,
                         ),
+                        boxShadow: isSelected
+                            ? [
+                                BoxShadow(
+                                  color: const Color(0xFF2DBD6C).withValues(alpha: 0.3),
+                                  blurRadius: 4,
+                                  spreadRadius: 1,
+                                )
+                              ]
+                            : null,
                       ),
                       child: isSelected
                           ? Icon(
                               Icons.check,
                               color: colorInt == 0xFFFFFFFF
-                                  ? (isDark ? Colors.white : Colors.black)
+                                  ? const Color(0xFF2DBD6C)
                                   : Colors.white,
-                              size: 20,
+                              size: 18,
                             )
                           : null,
                     ),
@@ -223,35 +244,43 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
                 },
               ),
             ),
-            const Divider(height: 1),
             // Reminder info
             if (_reminderDateTime != null)
               Container(
-                margin: const EdgeInsets.all(16),
+                margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.orange.shade50,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.orange.shade200),
+                  color: const Color(0xFF2DBD6C).withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: const Color(0xFF2DBD6C).withValues(alpha: 0.3),
+                    width: 1,
+                  ),
                 ),
                 child: Row(
                   children: [
-                    Icon(Icons.alarm, color: Colors.orange.shade700),
-                    const SizedBox(width: 8),
+                    const Icon(
+                      Icons.alarm_rounded,
+                      color: Color(0xFF2DBD6C),
+                      size: 20,
+                    ),
+                    const SizedBox(width: 10),
                     Expanded(
                       child: Text(
-                        'Reminder: ${DateFormat('MMM d, y - HH:mm').format(_reminderDateTime!)}',
-                        style: TextStyle(
-                          color: Colors.orange.shade900,
+                        DateFormat('MMM d, y - HH:mm').format(_reminderDateTime!),
+                        style: const TextStyle(
+                          color: Color(0xFF2DBD6C),
                           fontWeight: FontWeight.w500,
+                          fontSize: 13,
                         ),
                       ),
                     ),
                     IconButton(
-                      icon: Icon(Icons.close, color: Colors.orange.shade700),
+                      icon: const Icon(Icons.close, color: Color(0xFF2DBD6C)),
                       onPressed: _removeReminder,
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(),
+                      iconSize: 20,
                     ),
                   ],
                 ),
@@ -259,29 +288,46 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
             // Note content
             Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                 child: Column(
                   children: [
                     TextField(
                       controller: _titleController,
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         hintText: 'Title',
+                        hintStyle: TextStyle(
+                          color: isDark ? Colors.grey.shade600 : Colors.grey.shade400,
+                          fontSize: 24,
+                          fontWeight: FontWeight.w600,
+                        ),
                         border: InputBorder.none,
+                        contentPadding: EdgeInsets.zero,
                       ),
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 24,
-                        fontWeight: FontWeight.bold,
+                        fontWeight: FontWeight.w600,
+                        height: 1.3,
+                        color: isDark ? Colors.grey.shade100 : Colors.black87,
                       ),
                       maxLines: null,
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 12),
                     TextField(
                       controller: _contentController,
-                      decoration: const InputDecoration(
-                        hintText: 'Note',
+                      decoration: InputDecoration(
+                        hintText: 'Start writing...',
+                        hintStyle: TextStyle(
+                          color: isDark ? Colors.grey.shade600 : Colors.grey.shade400,
+                          fontSize: 16,
+                        ),
                         border: InputBorder.none,
+                        contentPadding: EdgeInsets.zero,
                       ),
-                      style: const TextStyle(fontSize: 16),
+                      style: TextStyle(
+                        fontSize: 16,
+                        height: 1.5,
+                        color: isDark ? Colors.grey.shade200 : Colors.black87,
+                      ),
                       maxLines: null,
                       autofocus: widget.note == null,
                     ),

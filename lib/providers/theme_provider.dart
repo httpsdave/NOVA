@@ -46,29 +46,43 @@ class ThemeProvider extends ChangeNotifier {
       useMaterial3: true,
       brightness: Brightness.light,
       colorScheme: ColorScheme.fromSeed(
-        seedColor: const Color(0xFF6750A4),
+        seedColor: const Color(0xFF2DBD6C), // Evernote green
         brightness: Brightness.light,
+        primary: const Color(0xFF2DBD6C),
+        secondary: const Color(0xFF00A82D),
       ),
-      scaffoldBackgroundColor: const Color(0xFFFFFBFE),
+      scaffoldBackgroundColor: const Color(0xFFF7F7F7),
       cardTheme: CardThemeData(
-        elevation: 0,
+        elevation: 1,
+        shadowColor: Colors.black.withValues(alpha: 0.08),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: Colors.grey.shade200),
+          borderRadius: BorderRadius.circular(8),
         ),
+        color: Colors.white,
       ),
       appBarTheme: const AppBarTheme(
         centerTitle: false,
         elevation: 0,
-        backgroundColor: Color(0xFFFFFBFE),
-        foregroundColor: Color(0xFF1C1B1F),
+        backgroundColor: Colors.white,
+        foregroundColor: Color(0xFF1A1A1A),
+        surfaceTintColor: Colors.transparent,
       ),
       floatingActionButtonTheme: const FloatingActionButtonThemeData(
-        elevation: 3,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.all(Radius.circular(16)),
-        ),
+        elevation: 4,
+        shape: CircleBorder(),
+        backgroundColor: Color(0xFF2DBD6C),
+        foregroundColor: Colors.white,
       ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: const Color(0xFFF5F5F5),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide.none,
+        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      ),
+      dividerColor: const Color(0xFFE0E0E0),
     );
   }
 
@@ -77,29 +91,43 @@ class ThemeProvider extends ChangeNotifier {
       useMaterial3: true,
       brightness: Brightness.dark,
       colorScheme: ColorScheme.fromSeed(
-        seedColor: const Color(0xFF6750A4),
+        seedColor: const Color(0xFF2DBD6C),
         brightness: Brightness.dark,
+        primary: const Color(0xFF2DBD6C),
+        secondary: const Color(0xFF00A82D),
       ),
-      scaffoldBackgroundColor: const Color(0xFF1C1B1F),
+      scaffoldBackgroundColor: const Color(0xFF1A1A1A),
       cardTheme: CardThemeData(
-        elevation: 0,
+        elevation: 1,
+        shadowColor: Colors.black.withValues(alpha: 0.3),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: const BorderSide(color: Color(0xFF2E2D32)),
+          borderRadius: BorderRadius.circular(8),
         ),
+        color: const Color(0xFF252525),
       ),
       appBarTheme: const AppBarTheme(
         centerTitle: false,
         elevation: 0,
-        backgroundColor: Color(0xFF1C1B1F),
-        foregroundColor: Color(0xFFE6E1E5),
+        backgroundColor: Color(0xFF1F1F1F),
+        foregroundColor: Color(0xFFE8E8E8),
+        surfaceTintColor: Colors.transparent,
       ),
       floatingActionButtonTheme: const FloatingActionButtonThemeData(
-        elevation: 3,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.all(Radius.circular(16)),
-        ),
+        elevation: 4,
+        shape: CircleBorder(),
+        backgroundColor: Color(0xFF2DBD6C),
+        foregroundColor: Colors.white,
       ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: const Color(0xFF2A2A2A),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide.none,
+        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      ),
+      dividerColor: const Color(0xFF333333),
     );
   }
 }

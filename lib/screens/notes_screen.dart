@@ -99,24 +99,53 @@ class _NotesScreenState extends State<NotesScreen> {
     final isDark = themeProvider.isDarkMode;
 
     return Scaffold(
+      backgroundColor: isDark ? const Color(0xFF1A1A1A) : const Color(0xFFF7F7F7),
       appBar: AppBar(
+        backgroundColor: isDark ? const Color(0xFF1F1F1F) : Colors.white,
+        elevation: 0.5,
+        shadowColor: Colors.black.withValues(alpha: 0.1),
         title: _isSearching
             ? TextField(
                 controller: _searchController,
                 autofocus: true,
-                decoration: const InputDecoration(
+                style: TextStyle(
+                  fontSize: 16,
+                  color: isDark ? Colors.white : Colors.black87,
+                ),
+                decoration: InputDecoration(
                   hintText: 'Search notes...',
+                  hintStyle: TextStyle(
+                    color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+                  ),
                   border: InputBorder.none,
+                  contentPadding: EdgeInsets.zero,
                 ),
                 onChanged: _searchNotes,
               )
-            : const Text(
-                'Nova',
-                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+            : Row(
+                children: [
+                  Icon(
+                    Icons.edit_note,
+                    color: const Color(0xFF2DBD6C),
+                    size: 28,
+                  ),
+                  const SizedBox(width: 12),
+                  const Text(
+                    'Nova',
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ],
               ),
         actions: [
           IconButton(
-            icon: Icon(_isSearching ? Icons.close : Icons.search),
+            icon: Icon(
+              _isSearching ? Icons.close : Icons.search_rounded,
+              color: isDark ? Colors.grey.shade300 : Colors.grey.shade700,
+            ),
             onPressed: () {
               setState(() {
                 if (_isSearching) {
@@ -130,9 +159,13 @@ class _NotesScreenState extends State<NotesScreen> {
             },
           ),
           IconButton(
-            icon: Icon(isDark ? Icons.light_mode : Icons.dark_mode),
+            icon: Icon(
+              isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined,
+              color: isDark ? Colors.grey.shade300 : Colors.grey.shade700,
+            ),
             onPressed: () => themeProvider.toggleTheme(),
           ),
+          const SizedBox(width: 4),
         ],
       ),
       body: _isLoading
@@ -143,22 +176,26 @@ class _NotesScreenState extends State<NotesScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Icon(
-                    Icons.note_add_outlined,
-                    size: 100,
-                    color: Colors.grey.shade400,
+                    Icons.note_outlined,
+                    size: 80,
+                    color: isDark ? Colors.grey.shade700 : Colors.grey.shade300,
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 24),
                   Text(
-                    _isSearching ? 'No notes found' : 'No notes yet',
-                    style: TextStyle(fontSize: 20, color: Colors.grey.shade600),
+                    _isSearching ? 'No notes found' : 'Create your first note',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w500,
+                      color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+                    ),
                   ),
                   const SizedBox(height: 8),
                   if (!_isSearching)
                     Text(
-                      'Tap + to create your first note',
+                      'Capture your thoughts and ideas',
                       style: TextStyle(
-                        fontSize: 16,
-                        color: Colors.grey.shade500,
+                        fontSize: 14,
+                        color: isDark ? Colors.grey.shade500 : Colors.grey.shade500,
                       ),
                     ),
                 ],
@@ -180,7 +217,7 @@ class _NotesScreenState extends State<NotesScreen> {
                 ),
               ),
             ),
-      floatingActionButton: FloatingActionButton.extended(
+      floatingActionButton: FloatingActionButton(
         onPressed: () async {
           final result = await Navigator.push(
             context,
@@ -193,15 +230,26 @@ class _NotesScreenState extends State<NotesScreen> {
             _loadNotes();
           }
         },
-        icon: const Icon(Icons.add),
-        label: const Text('New Note'),
+        child: const Icon(Icons.add, size: 28),
+        tooltip: 'New Note',
       ),
     );
   }
 
   Widget _buildNoteCard(Note note, bool isDark) {
+    final cardColor = _getNoteColor(note.color, isDark);
+    
     return Card(
-      color: _getNoteColor(note.color, isDark),
+      color: cardColor,
+      elevation: 1,
+      shadowColor: Colors.black.withValues(alpha: isDark ? 0.3 : 0.08),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+        side: BorderSide(
+          color: isDark ? Colors.grey.shade800 : Colors.grey.shade200,
+          width: 0.5,
+        ),
+      ),
       child: InkWell(
         onTap: () async {
           final result = await Navigator.push(
@@ -215,20 +263,80 @@ class _NotesScreenState extends State<NotesScreen> {
             _loadNotes();
           }
         },
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(8),
         child: Padding(
           padding: const EdgeInsets.all(16.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              if (note.title.isNotEmpty) ...[
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        note.title,
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: isDark ? Colors.grey.shade100 : Colors.black87,
+                          height: 1.3,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    if (note.isPinned) ...[
+                      const SizedBox(width: 8),
+                      Icon(
+                        Icons.push_pin,
+                        size: 16,
+                        color: const Color(0xFF2DBD6C),
+                      ),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 8),
+              ],
+              if (note.content.isNotEmpty) ...[
+                Text(
+                  note.content,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: isDark ? Colors.grey.shade400 : Colors.grey.shade700,
+                    height: 1.4,
+                  ),
+                  maxLines: 8,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 12),
+              ],
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  if (note.isPinned)
-                    const Icon(Icons.push_pin, size: 20, color: Colors.amber),
-                  const Spacer(),
+                  if (note.reminderDateTime != null) ...[
+                    Icon(
+                      Icons.notifications_active_rounded,
+                      size: 12,
+                      color: const Color(0xFF2DBD6C),
+                    ),
+                    const SizedBox(width: 4),
+                  ],
+                  Expanded(
+                    child: Text(
+                      DateFormat('MMM d, y').format(note.updatedAt),
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: isDark ? Colors.grey.shade500 : Colors.grey.shade500,
+                        fontWeight: FontWeight.w400,
+                      ),
+                    ),
+                  ),
                   PopupMenuButton<String>(
-                    icon: const Icon(Icons.more_vert, size: 20),
+                    padding: EdgeInsets.zero,
+                    icon: Icon(
+                      Icons.more_horiz,
+                      size: 18,
+                      color: isDark ? Colors.grey.shade500 : Colors.grey.shade600,
+                    ),
                     onSelected: (value) {
                       if (value == 'pin') {
                         _togglePin(note);
@@ -242,11 +350,10 @@ class _NotesScreenState extends State<NotesScreen> {
                         child: Row(
                           children: [
                             Icon(
-                              note.isPinned
-                                  ? Icons.push_pin_outlined
-                                  : Icons.push_pin,
+                              note.isPinned ? Icons.push_pin_outlined : Icons.push_pin,
+                              size: 18,
                             ),
-                            const SizedBox(width: 8),
+                            const SizedBox(width: 12),
                             Text(note.isPinned ? 'Unpin' : 'Pin'),
                           ],
                         ),
@@ -255,69 +362,13 @@ class _NotesScreenState extends State<NotesScreen> {
                         value: 'delete',
                         child: Row(
                           children: [
-                            Icon(Icons.delete, color: Colors.red),
-                            SizedBox(width: 8),
+                            Icon(Icons.delete_outline, color: Colors.red, size: 18),
+                            SizedBox(width: 12),
                             Text('Delete', style: TextStyle(color: Colors.red)),
                           ],
                         ),
                       ),
                     ],
-                  ),
-                ],
-              ),
-              if (note.title.isNotEmpty) ...[
-                const SizedBox(height: 8),
-                Text(
-                  note.title,
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-              if (note.content.isNotEmpty) ...[
-                const SizedBox(height: 8),
-                Text(
-                  note.content,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: isDark ? Colors.grey.shade300 : Colors.grey.shade700,
-                  ),
-                  maxLines: 10,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  if (note.reminderDateTime != null) ...[
-                    Icon(
-                      Icons.notifications_active,
-                      size: 14,
-                      color: Colors.orange.shade700,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      DateFormat('MMM d, HH:mm').format(note.reminderDateTime!),
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: Colors.orange.shade700,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                  ],
-                  Expanded(
-                    child: Text(
-                      DateFormat('MMM d, y').format(note.updatedAt),
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: isDark
-                            ? Colors.grey.shade400
-                            : Colors.grey.shade600,
-                      ),
-                    ),
                   ),
                 ],
               ),
