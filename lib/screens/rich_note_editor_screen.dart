@@ -484,11 +484,19 @@ ${_descriptionController.text.isNotEmpty ? '${_descriptionController.text}\n\n' 
       );
     }
 
+    final backgroundColor = Color(_selectedColor);
+    final isLightColor = backgroundColor.computeLuminance() > 0.5;
+
     return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF1A1A1A) : const Color(0xFFF5F5F5),
+      backgroundColor: isDark ? backgroundColor.withValues(alpha: 0.95) : backgroundColor,
       appBar: AppBar(
-        backgroundColor: isDark ? const Color(0xFF1F1F1F) : Colors.white,
+        backgroundColor: isLightColor 
+          ? Colors.white.withValues(alpha: 0.9)
+          : Colors.black.withValues(alpha: 0.5),
         elevation: 0,
+        iconTheme: IconThemeData(
+          color: isLightColor ? Colors.black87 : Colors.white,
+        ),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.pop(context, false),
@@ -519,30 +527,41 @@ ${_descriptionController.text.isNotEmpty ? '${_descriptionController.text}\n\n' 
         children: [
           // Title and metadata section
           Container(
-            color: isDark ? const Color(0xFF1F1F1F) : Colors.white,
-            padding: const EdgeInsets.all(16),
+            color: Colors.transparent,
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
             child: Column(
               children: [
                 TextField(
                   controller: _titleController,
-                  style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-                  decoration: const InputDecoration(
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: isLightColor ? Colors.black87 : Colors.white,
+                  ),
+                  decoration: InputDecoration(
                     hintText: 'Title',
+                    hintStyle: TextStyle(
+                      color: isLightColor ? Colors.grey.shade400 : Colors.grey.shade600,
+                    ),
                     border: InputBorder.none,
+                    contentPadding: EdgeInsets.zero,
                   ),
                 ),
-                const SizedBox(height: 8),
                 TextField(
                   controller: _descriptionController,
                   style: TextStyle(
                     fontSize: 14,
-                    color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+                    color: isLightColor ? Colors.grey.shade700 : Colors.grey.shade400,
                   ),
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     hintText: 'Description (optional)',
+                    hintStyle: TextStyle(
+                      color: isLightColor ? Colors.grey.shade400 : Colors.grey.shade600,
+                    ),
                     border: InputBorder.none,
+                    contentPadding: EdgeInsets.zero,
                   ),
-                  maxLines: 2,
+                  maxLines: null,
                 ),
               ],
             ),
@@ -550,7 +569,21 @@ ${_descriptionController.text.isNotEmpty ? '${_descriptionController.text}\n\n' 
           
           // Quill toolbar
           Container(
-            color: isDark ? const Color(0xFF1F1F1F) : Colors.white,
+            decoration: BoxDecoration(
+              color: isLightColor 
+                ? Colors.white.withValues(alpha: 0.7)
+                : Colors.black.withValues(alpha: 0.3),
+              border: Border(
+                top: BorderSide(
+                  color: isLightColor ? Colors.grey.shade300 : Colors.grey.shade700,
+                  width: 0.5,
+                ),
+                bottom: BorderSide(
+                  color: isLightColor ? Colors.grey.shade300 : Colors.grey.shade700,
+                  width: 0.5,
+                ),
+              ),
+            ),
             padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
             child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
@@ -608,7 +641,7 @@ ${_descriptionController.text.isNotEmpty ? '${_descriptionController.text}\n\n' 
           // Rich text editor
           Expanded(
             child: Container(
-              color: isDark ? const Color(0xFF1A1A1A) : const Color(0xFFF5F5F5),
+              color: Colors.transparent,
               padding: const EdgeInsets.all(16),
               child: quill.QuillEditor(
                 controller: _quillController,
@@ -620,7 +653,17 @@ ${_descriptionController.text.isNotEmpty ? '${_descriptionController.text}\n\n' 
           
           // Bottom metadata bar
           Container(
-            color: isDark ? const Color(0xFF1F1F1F) : Colors.white,
+            decoration: BoxDecoration(
+              color: isLightColor 
+                ? Colors.white.withValues(alpha: 0.7)
+                : Colors.black.withValues(alpha: 0.3),
+              border: Border(
+                top: BorderSide(
+                  color: isLightColor ? Colors.grey.shade300 : Colors.grey.shade700,
+                  width: 0.5,
+                ),
+              ),
+            ),
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
