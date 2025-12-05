@@ -77,6 +77,9 @@ dependencies:
   
   # Rich text editing
   flutter_quill: ^11.0.0
+  
+  # Sharing
+  share_plus: ^10.1.2
 
 dev_dependencies:
   flutter_test:

@@ -6,7 +6,7 @@ import '../models/notebook.dart';
 import '../services/database_service.dart';
 import '../services/notification_service.dart';
 import '../providers/theme_provider.dart';
-import 'note_editor_screen.dart';
+import 'rich_note_editor_screen.dart';
 import 'trash_screen.dart';
 import 'notebooks_screen.dart';
 import 'security_settings_screen.dart';
@@ -21,7 +21,6 @@ class NotesScreen extends StatefulWidget {
 class _NotesScreenState extends State<NotesScreen> {
   List<Note> _notes = [];
   List<Note> _filteredNotes = [];
-  List<Notebook> _notebooks = [];
   Notebook? _selectedNotebook;
   bool _isLoading = true;
   bool _isSearching = false;
@@ -68,10 +67,9 @@ class _NotesScreenState extends State<NotesScreen> {
 
   Future<void> _loadNotebooks() async {
     try {
-      final notebooks = await DatabaseService.instance.getAllNotebooks();
-      setState(() {
-        _notebooks = notebooks;
-      });
+      await DatabaseService.instance.getAllNotebooks();
+      // Notebooks loaded successfully but not stored in state
+      // as they're only needed for navigation
     } catch (e) {
       // Silently fail for notebooks as it's not critical for main view
       print('Error loading notebooks: $e');
@@ -389,23 +387,100 @@ class _NotesScreenState extends State<NotesScreen> {
                 ),
               ),
             ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () async {
-          final result = await Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) =>
-                  NoteEditorScreen(availableColors: _noteColors),
-            ),
-          );
-          if (result == true) {
-            _loadNotes();
-          }
-        },
-        tooltip: 'New Note',
-        child: const Icon(Icons.add, size: 28),
+      floatingActionButton: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          FloatingActionButton.small(
+            heroTag: 'template',
+            onPressed: _showTemplateOptions,
+            tooltip: 'New from Template',
+            child: const Icon(Icons.description, size: 20),
+          ),
+          const SizedBox(height: 12),
+          FloatingActionButton(
+            heroTag: 'new',
+            onPressed: () async {
+              final result = await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) =>
+                      RichNoteEditorScreen(availableColors: _noteColors),
+                ),
+              );
+              if (result == true) {
+                _loadNotes();
+              }
+            },
+            tooltip: 'New Note',
+            child: const Icon(Icons.add, size: 28),
+          ),
+        ],
       ),
     );
+  }
+
+  void _showTemplateOptions() {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.business_center),
+              title: const Text('Meeting Notes'),
+              subtitle: const Text('Date, attendees, agenda, action items'),
+              onTap: () {
+                Navigator.pop(context);
+                _openTemplateNote('meeting');
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.checklist),
+              title: const Text('To-Do List'),
+              subtitle: const Text('Quick checklist template'),
+              onTap: () {
+                Navigator.pop(context);
+                _openTemplateNote('todo');
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.book),
+              title: const Text('Journal Entry'),
+              subtitle: const Text('Daily journal with prompts'),
+              onTap: () {
+                Navigator.pop(context);
+                _openTemplateNote('journal');
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.restaurant),
+              title: const Text('Recipe'),
+              subtitle: const Text('Ingredients and instructions'),
+              onTap: () {
+                Navigator.pop(context);
+                _openTemplateNote('recipe');
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openTemplateNote(String templateType) async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => RichNoteEditorScreen(
+          availableColors: _noteColors,
+          templateType: templateType,
+        ),
+      ),
+    );
+    if (result == true) {
+      _loadNotes();
+    }
   }
 
   Widget _buildNoteCard(Note note, bool isDark) {
@@ -431,7 +506,7 @@ class _NotesScreenState extends State<NotesScreen> {
             context,
             MaterialPageRoute(
               builder: (context) =>
-                  NoteEditorScreen(note: note, availableColors: _noteColors),
+                  RichNoteEditorScreen(note: note, availableColors: _noteColors),
             ),
           );
           if (result == true) {
