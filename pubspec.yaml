@@ -59,6 +59,9 @@ dependencies:
   # Utils
   uuid: ^4.4.2
   shared_preferences: ^2.3.2
+  
+  # HTML support
+  html: ^0.15.4
 
 dev_dependencies:
   flutter_test:

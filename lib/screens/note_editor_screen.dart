@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../models/note.dart';
 import '../services/database_service.dart';
 import '../services/notification_service.dart';
+import '../services/file_storage_service.dart';
 
 class NoteEditorScreen extends StatefulWidget {
   final Note? note;
@@ -18,23 +19,45 @@ class NoteEditorScreen extends StatefulWidget {
 class _NoteEditorScreenState extends State<NoteEditorScreen> {
   late TextEditingController _titleController;
   late TextEditingController _contentController;
+  late TextEditingController _descriptionController;
   late int _selectedColor;
   DateTime? _reminderDateTime;
+  final List<String> _tags = [];
+  final TextEditingController _tagController = TextEditingController();
+  List<Note> _relatedNotes = [];
 
   @override
   void initState() {
     super.initState();
     _titleController = TextEditingController(text: widget.note?.title ?? '');
+    _descriptionController = TextEditingController(text: widget.note?.description ?? '');
     _contentController = TextEditingController(
       text: widget.note?.content ?? '',
     );
     _selectedColor = widget.note?.color ?? 0xFFFFFFFF;
     _reminderDateTime = widget.note?.reminderDateTime;
+    
+    if (widget.note?.tags != null) {
+      _tags.addAll(widget.note!.tags);
+    }
+    
+    if (widget.note != null && widget.note!.tags.isNotEmpty) {
+      _loadRelatedNotes();
+    }
+  }
+
+  Future<void> _loadRelatedNotes() async {
+    if (widget.note == null) return;
+    final related = await DatabaseService.instance.getRelatedNotes(widget.note!);
+    if (mounted) {
+      setState(() => _relatedNotes = related);
+    }
   }
 
   Future<void> _saveNote() async {
     final title = _titleController.text.trim();
     final content = _contentController.text.trim();
+    final description = _descriptionController.text.trim();
 
     if (title.isEmpty && content.isEmpty) {
       Navigator.pop(context, false);
@@ -42,6 +65,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
     }
 
     final now = DateTime.now();
+    final htmlContent = '<p>${content.replaceAll('\n', '</p><p>')}</p>';
 
     if (widget.note == null) {
       // Create new note
@@ -49,19 +73,27 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
         id: const Uuid().v4(),
         title: title,
         content: content,
+        htmlContent: htmlContent,
+        description: description,
+        tags: _tags,
         createdAt: now,
         updatedAt: now,
         color: _selectedColor,
         reminderDateTime: _reminderDateTime,
       );
       await DatabaseService.instance.createNote(newNote);
+      
+      // Save as HTML file
+      final filePath = await FileStorageService.instance.saveNoteAsHtml(newNote);
+      final noteWithPath = newNote.copyWith(filePath: filePath);
+      await DatabaseService.instance.updateNote(noteWithPath);
 
       if (_reminderDateTime != null &&
           _reminderDateTime!.isAfter(DateTime.now())) {
         await NotificationService.instance.scheduleNotification(
           id: newNote.id.hashCode,
           title: 'Reminder: ${title.isEmpty ? "Note" : title}',
-          body: content.isEmpty ? 'You have a note reminder' : content,
+          body: description.isEmpty ? content : description,
           scheduledDate: _reminderDateTime!,
         );
       }
@@ -70,11 +102,17 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
       final updatedNote = widget.note!.copyWith(
         title: title,
         content: content,
+        htmlContent: htmlContent,
+        description: description,
+        tags: _tags,
         updatedAt: now,
         color: _selectedColor,
         reminderDateTime: _reminderDateTime,
       );
       await DatabaseService.instance.updateNote(updatedNote);
+      
+      // Update HTML file
+      await FileStorageService.instance.saveNoteAsHtml(updatedNote);
 
       // Update notification
       await NotificationService.instance.cancelNotification(
@@ -85,7 +123,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
         await NotificationService.instance.scheduleNotification(
           id: updatedNote.id.hashCode,
           title: 'Reminder: ${title.isEmpty ? "Note" : title}',
-          body: content.isEmpty ? 'You have a note reminder' : content,
+          body: description.isEmpty ? content : description,
           scheduledDate: _reminderDateTime!,
         );
       }
@@ -133,12 +171,132 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
     });
   }
 
+  void _addTag() {
+    final tag = _tagController.text.trim();
+    if (tag.isNotEmpty && !_tags.contains(tag)) {
+      setState(() {
+        _tags.add(tag);
+        _tagController.clear();
+      });
+      _loadRelatedNotes();
+    }
+  }
+
+  void _removeTag(String tag) {
+    setState(() {
+      _tags.remove(tag);
+    });
+    _loadRelatedNotes();
+  }
+
+  bool _isColorLight(int colorValue) {
+    final color = Color(colorValue);
+    // Calculate luminance - if white (0xFFFFFFFF), check theme
+    if (colorValue == 0xFFFFFFFF) {
+      return Theme.of(context).brightness == Brightness.light;
+    }
+    // Calculate relative luminance
+    final luminance = (0.299 * color.red + 0.587 * color.green + 0.114 * color.blue) / 255;
+    return luminance > 0.5;
+  }
+
+  Widget _buildRelatedNoteCard(Note note, bool isDark) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      elevation: 1,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      child: InkWell(
+        onTap: () async {
+          await _saveNote();
+          if (mounted) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (context) => NoteEditorScreen(
+                  note: note,
+                  availableColors: widget.availableColors,
+                ),
+              ),
+            );
+          }
+        },
+        borderRadius: BorderRadius.circular(8),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.link, size: 14, color: isDark ? Colors.grey.shade500 : Colors.grey.shade600),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      note.title,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                        color: isDark ? Colors.grey.shade100 : Colors.black87,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+              if (note.description.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Text(
+                  note.description,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: isDark ? Colors.grey.shade400 : Colors.black54,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+              if (note.tags.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 4,
+                  children: note.tags.take(3).map((tag) {
+                    return Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF2DBD6C).withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        tag,
+                        style: const TextStyle(
+                          fontSize: 10,
+                          color: Color(0xFF2DBD6C),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final backgroundColor = _selectedColor == 0xFFFFFFFF
         ? (isDark ? const Color(0xFF2E2D32) : Colors.white)
         : Color(_selectedColor);
+    
+    // Determine if the current background is dark
+    final backgroundIsLight = _isColorLight(_selectedColor);
+    final textColor = backgroundIsLight ? Colors.black87 : Colors.white;
+    final hintColor = backgroundIsLight ? Colors.grey.shade500 : Colors.grey.shade400;
 
     return PopScope(
       canPop: false,
@@ -153,6 +311,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
           backgroundColor: backgroundColor,
           elevation: 0.5,
           shadowColor: Colors.black.withValues(alpha: 0.1),
+          iconTheme: IconThemeData(color: textColor),
           leading: IconButton(
             icon: const Icon(Icons.arrow_back),
             onPressed: () async {
@@ -168,7 +327,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
                 color: const Color(0xFF2DBD6C),
               ),
             IconButton(
-              icon: const Icon(Icons.alarm_add_rounded, size: 22),
+              icon: Icon(Icons.alarm_add_rounded, size: 22, color: textColor),
               onPressed: _selectReminderDateTime,
               tooltip: 'Set reminder',
             ),
@@ -290,47 +449,151 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
               child: SingleChildScrollView(
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                 child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     TextField(
                       controller: _titleController,
                       decoration: InputDecoration(
                         hintText: 'Title',
                         hintStyle: TextStyle(
-                          color: isDark ? Colors.grey.shade600 : Colors.grey.shade400,
+                          color: hintColor,
                           fontSize: 24,
                           fontWeight: FontWeight.w600,
                         ),
                         border: InputBorder.none,
+                        filled: false,
                         contentPadding: EdgeInsets.zero,
                       ),
                       style: TextStyle(
                         fontSize: 24,
                         fontWeight: FontWeight.w600,
                         height: 1.3,
-                        color: isDark ? Colors.grey.shade100 : Colors.black87,
+                        color: textColor,
                       ),
                       maxLines: null,
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: _descriptionController,
+                      decoration: InputDecoration(
+                        hintText: 'Add a short description...',
+                        hintStyle: TextStyle(
+                          color: hintColor,
+                          fontSize: 14,
+                          fontStyle: FontStyle.italic,
+                        ),
+                        border: InputBorder.none,
+                        filled: false,
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontStyle: FontStyle.italic,
+                        height: 1.4,
+                        color: textColor.withOpacity(0.8),
+                      ),
+                      maxLines: 2,
+                    ),
+                    const SizedBox(height: 16),
+                    // Tags Section
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _tagController,
+                            decoration: InputDecoration(
+                              hintText: 'Add tags (e.g., work, personal)...',
+                              hintStyle: TextStyle(
+                                color: hintColor,
+                                fontSize: 13,
+                              ),
+                              filled: true,
+                              fillColor: backgroundIsLight 
+                                  ? Colors.white.withOpacity(0.8) 
+                                  : Colors.black.withOpacity(0.2),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                                borderSide: BorderSide(color: backgroundIsLight ? Colors.grey.shade300 : Colors.grey.shade600),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                                borderSide: BorderSide(color: backgroundIsLight ? Colors.grey.shade300 : Colors.grey.shade600),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                                borderSide: const BorderSide(color: Color(0xFF2DBD6C), width: 1.5),
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                              suffixIcon: IconButton(
+                                icon: const Icon(Icons.add, color: Color(0xFF2DBD6C)),
+                                onPressed: _addTag,
+                              ),
+                            ),
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: textColor,
+                            ),
+                            onSubmitted: (_) => _addTag(),
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (_tags.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: _tags.map((tag) {
+                          return Chip(
+                            label: Text(tag),
+                            labelStyle: const TextStyle(color: Colors.white, fontSize: 12),
+                            backgroundColor: const Color(0xFF2DBD6C),
+                            deleteIcon: const Icon(Icons.close, size: 16, color: Colors.white),
+                            onDeleted: () => _removeTag(tag),
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          );
+                        }).toList(),
+                      ),
+                    ],
+                    const SizedBox(height: 16),
+                    const Divider(),
+                    const SizedBox(height: 8),
                     TextField(
                       controller: _contentController,
                       decoration: InputDecoration(
                         hintText: 'Start writing...',
                         hintStyle: TextStyle(
-                          color: isDark ? Colors.grey.shade600 : Colors.grey.shade400,
+                          color: hintColor,
                           fontSize: 16,
                         ),
                         border: InputBorder.none,
+                        filled: false,
                         contentPadding: EdgeInsets.zero,
                       ),
                       style: TextStyle(
                         fontSize: 16,
                         height: 1.5,
-                        color: isDark ? Colors.grey.shade200 : Colors.black87,
+                        color: textColor,
                       ),
                       maxLines: null,
                       autofocus: widget.note == null,
                     ),
+                    // Related Notes Section
+                    if (_relatedNotes.isNotEmpty) ...[
+                      const SizedBox(height: 32),
+                      const Divider(),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Related Notes',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: isDark ? Colors.grey.shade100 : Colors.black87,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      ..._relatedNotes.map((note) => _buildRelatedNoteCard(note, isDark)),
+                    ],
                   ],
                 ),
               ),
@@ -344,7 +607,9 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
   @override
   void dispose() {
     _titleController.dispose();
+    _descriptionController.dispose();
     _contentController.dispose();
+    _tagController.dispose();
     super.dispose();
   }
 }

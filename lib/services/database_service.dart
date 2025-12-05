@@ -19,7 +19,22 @@ class DatabaseService {
     final dbPath = await getDatabasesPath();
     final path = join(dbPath, filePath);
 
-    return await openDatabase(path, version: 1, onCreate: _createDB);
+    return await openDatabase(
+      path,
+      version: 2, // Increment version for schema update
+      onCreate: _createDB,
+      onUpgrade: _onUpgrade,
+    );
+  }
+
+  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      // Add new columns to notes table
+      await db.execute('ALTER TABLE notes ADD COLUMN htmlContent TEXT');
+      await db.execute('ALTER TABLE notes ADD COLUMN description TEXT');
+      await db.execute('ALTER TABLE notes ADD COLUMN tags TEXT');
+      await db.execute('ALTER TABLE notes ADD COLUMN filePath TEXT');
+    }
   }
 
   Future<void> _createDB(Database db, int version) async {
@@ -32,11 +47,15 @@ class DatabaseService {
         id $idType,
         title $textType,
         content $textType,
+        htmlContent TEXT,
+        description TEXT,
+        tags TEXT,
         createdAt $textType,
         updatedAt $textType,
         color $intType,
         isPinned $intType,
-        reminderDateTime TEXT
+        reminderDateTime TEXT,
+        filePath TEXT
       )
     ''');
 
@@ -100,9 +119,26 @@ class DatabaseService {
     final db = await instance.database;
     final result = await db.query(
       'notes',
-      where: 'title LIKE ? OR content LIKE ?',
-      whereArgs: ['%$query%', '%$query%'],
+      where: 'title LIKE ? OR content LIKE ? OR description LIKE ? OR tags LIKE ?',
+      whereArgs: ['%$query%', '%$query%', '%$query%', '%$query%'],
       orderBy: 'isPinned DESC, updatedAt DESC',
+    );
+    return result.map((map) => Note.fromMap(map)).toList();
+  }
+
+  // Get related notes based on shared tags
+  Future<List<Note>> getRelatedNotes(Note note, {int limit = 5}) async {
+    if (note.tags.isEmpty) return [];
+    
+    final db = await instance.database;
+    final tagConditions = note.tags.map((tag) => "tags LIKE '%$tag%'").join(' OR ');
+    
+    final result = await db.query(
+      'notes',
+      where: '($tagConditions) AND id != ?',
+      whereArgs: [note.id],
+      orderBy: 'updatedAt DESC',
+      limit: limit,
     );
     return result.map((map) => Note.fromMap(map)).toList();
   }

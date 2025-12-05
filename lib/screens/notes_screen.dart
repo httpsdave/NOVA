@@ -230,8 +230,8 @@ class _NotesScreenState extends State<NotesScreen> {
             _loadNotes();
           }
         },
-        child: const Icon(Icons.add, size: 28),
         tooltip: 'New Note',
+        child: const Icon(Icons.add, size: 28),
       ),
     );
   }

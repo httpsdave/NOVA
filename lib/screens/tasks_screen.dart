@@ -400,31 +400,34 @@ class _TasksScreenState extends State<TasksScreen> {
                 ? const Center(child: CircularProgressIndicator())
                 : _selectedDayTasks.isEmpty
                 ? Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.task_outlined,
-                          size: 100,
-                          color: Colors.grey.shade400,
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'No tasks for this day',
-                          style: TextStyle(
-                            fontSize: 20,
-                            color: Colors.grey.shade600,
+                    child: SingleChildScrollView(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.task_outlined,
+                            size: 80,
+                            color: Colors.grey.shade400,
                           ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Tap + to create a new task',
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: Colors.grey.shade500,
+                          const SizedBox(height: 16),
+                          Text(
+                            'No tasks for this day',
+                            style: TextStyle(
+                              fontSize: 18,
+                              color: Colors.grey.shade600,
+                            ),
                           ),
-                        ),
-                      ],
+                          const SizedBox(height: 8),
+                          Text(
+                            'Tap + to create a new task',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey.shade500,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   )
                 : RefreshIndicator(
@@ -441,15 +444,16 @@ class _TasksScreenState extends State<TasksScreen> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
+      floatingActionButton: FloatingActionButton(
         onPressed: () => _showTaskDialog(),
-        icon: const Icon(Icons.add),
-        label: const Text('New Task'),
+        child: const Icon(Icons.add),
+        tooltip: 'New Task',
       ),
     );
   }
 
   Widget _buildTaskCard(Task task) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     Color priorityColor;
     String priorityLabel;
 
@@ -466,7 +470,7 @@ class _TasksScreenState extends State<TasksScreen> {
         priorityColor = Colors.blue;
         priorityLabel = 'Low';
     }
-
+    
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       child: ListTile(
@@ -480,6 +484,9 @@ class _TasksScreenState extends State<TasksScreen> {
           style: TextStyle(
             decoration: task.isCompleted ? TextDecoration.lineThrough : null,
             fontWeight: FontWeight.w600,
+            color: task.isCompleted
+                ? (isDark ? Colors.grey.shade500 : Colors.grey.shade600)
+                : (isDark ? Colors.white : Colors.black87),
           ),
         ),
         subtitle: Column(
@@ -491,6 +498,9 @@ class _TasksScreenState extends State<TasksScreen> {
                 task.description,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: isDark ? Colors.grey.shade300 : Colors.black87,
+                ),
               ),
             ],
             const SizedBox(height: 4),
@@ -509,17 +519,24 @@ class _TasksScreenState extends State<TasksScreen> {
                     priorityLabel,
                     style: TextStyle(
                       fontSize: 11,
-                      color: priorityColor,
+                      color: isDark ? priorityColor.withValues(alpha: 1.0) : priorityColor,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
                 ),
                 const SizedBox(width: 8),
-                Icon(Icons.access_time, size: 14, color: Colors.grey.shade600),
+                Icon(
+                  Icons.access_time,
+                  size: 14,
+                  color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+                ),
                 const SizedBox(width: 4),
                 Text(
                   DateFormat('HH:mm').format(task.dueDate),
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+                  ),
                 ),
                 if (task.reminderDateTime != null) ...[
                   const SizedBox(width: 8),
