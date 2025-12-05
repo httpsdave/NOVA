@@ -48,7 +48,7 @@ dependencies:
   timezone: ^0.9.4
   
   # Date & Time
-  intl: ^0.19.0
+  intl: ^0.20.0
   table_calendar: ^3.1.2
   
   # UI
@@ -62,6 +62,20 @@ dependencies:
   
   # HTML support
   html: ^0.15.4
+  
+  # Image handling
+  image_picker: ^1.1.2
+  
+  # Security
+  local_auth: ^2.3.0
+  flutter_secure_storage: ^9.2.2
+  
+  # PDF export
+  pdf: ^3.11.1
+  printing: ^5.13.2
+  
+  # Rich text editing
+  flutter_quill: ^11.0.0
 
 dev_dependencies:
   flutter_test:

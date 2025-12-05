@@ -1,10 +1,17 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
 import 'package:intl/intl.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:path/path.dart' as path;
 import '../models/note.dart';
+import '../models/notebook.dart';
+import '../models/attachment.dart';
 import '../services/database_service.dart';
 import '../services/notification_service.dart';
 import '../services/file_storage_service.dart';
+import 'notebooks_screen.dart';
 
 class NoteEditorScreen extends StatefulWidget {
   final Note? note;
@@ -25,6 +32,10 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
   final List<String> _tags = [];
   final TextEditingController _tagController = TextEditingController();
   List<Note> _relatedNotes = [];
+  Notebook? _selectedNotebook;
+  List<Notebook> _notebooks = [];
+  List<Attachment> _attachments = [];
+  final ImagePicker _imagePicker = ImagePicker();
 
   @override
   void initState() {
@@ -44,6 +55,120 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
     if (widget.note != null && widget.note!.tags.isNotEmpty) {
       _loadRelatedNotes();
     }
+    
+    _loadNotebooks();
+    _loadSelectedNotebook();
+    if (widget.note != null) {
+      _loadAttachments();
+    }
+  }
+
+  Future<void> _loadAttachments() async {
+    if (widget.note == null) return;
+    final attachments = await DatabaseService.instance.getAttachmentsByNote(widget.note!.id);
+    setState(() {
+      _attachments = attachments;
+    });
+  }
+
+  Future<void> _pickImage() async {
+    try {
+      final XFile? image = await _imagePicker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 85,
+      );
+
+      if (image == null) return;
+
+      // Save to app directory
+      final appDir = await getApplicationDocumentsDirectory();
+      final attachmentsDir = Directory(path.join(appDir.path, 'nova_attachments'));
+      if (!await attachmentsDir.exists()) {
+        await attachmentsDir.create(recursive: true);
+      }
+
+      final String fileName = '${const Uuid().v4()}${path.extension(image.path)}';
+      final String newPath = path.join(attachmentsDir.path, fileName);
+      final File imageFile = File(image.path);
+      await imageFile.copy(newPath);
+
+      // Get file size
+      final fileSize = await imageFile.length();
+
+      // Create attachment record (will be saved when note is saved)
+      final attachment = Attachment(
+        id: const Uuid().v4(),
+        noteId: widget.note?.id ?? 'temp', // Will be updated when note is saved
+        filePath: newPath,
+        fileName: path.basename(image.path),
+        fileType: 'image',
+        fileSize: fileSize,
+        createdAt: DateTime.now(),
+      );
+
+      setState(() {
+        _attachments.add(attachment);
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error picking image: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _removeAttachment(Attachment attachment) async {
+    setState(() {
+      _attachments.remove(attachment);
+    });
+
+    // Delete file and database record if note already exists
+    if (widget.note != null) {
+      try {
+        final file = File(attachment.filePath);
+        if (await file.exists()) {
+          await file.delete();
+        }
+        await DatabaseService.instance.deleteAttachment(attachment.id);
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error removing attachment: $e')),
+          );
+        }
+      }
+    }
+  }
+
+  Future<void> _loadNotebooks() async {
+    final notebooks = await DatabaseService.instance.getAllNotebooks();
+    setState(() {
+      _notebooks = notebooks;
+    });
+  }
+
+  Future<void> _loadSelectedNotebook() async {
+    if (widget.note?.notebookId != null) {
+      final notebook = await DatabaseService.instance.getNotebook(widget.note!.notebookId!);
+      setState(() {
+        _selectedNotebook = notebook;
+      });
+    }
+  }
+
+  Future<void> _selectNotebook() async {
+    final result = await Navigator.push<Notebook>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const NotebooksScreen(),
+      ),
+    );
+    if (result != null && mounted) {
+      setState(() {
+        _selectedNotebook = result;
+      });
+    }
   }
 
   Future<void> _loadRelatedNotes() async {
@@ -55,17 +180,18 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
   }
 
   Future<void> _saveNote() async {
-    final title = _titleController.text.trim();
-    final content = _contentController.text.trim();
-    final description = _descriptionController.text.trim();
+    try {
+      final title = _titleController.text.trim();
+      final content = _contentController.text.trim();
+      final description = _descriptionController.text.trim();
 
-    if (title.isEmpty && content.isEmpty) {
-      Navigator.pop(context, false);
-      return;
-    }
+      if (title.isEmpty && content.isEmpty) {
+        Navigator.pop(context, false);
+        return;
+      }
 
-    final now = DateTime.now();
-    final htmlContent = '<p>${content.replaceAll('\n', '</p><p>')}</p>';
+      final now = DateTime.now();
+      final htmlContent = '<p>${content.replaceAll('\n', '</p><p>')}</p>';
 
     if (widget.note == null) {
       // Create new note
@@ -80,8 +206,15 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
         updatedAt: now,
         color: _selectedColor,
         reminderDateTime: _reminderDateTime,
+        notebookId: _selectedNotebook?.id,
       );
       await DatabaseService.instance.createNote(newNote);
+      
+      // Save attachments
+      for (final attachment in _attachments) {
+        final attachmentWithNoteId = attachment.copyWith(noteId: newNote.id);
+        await DatabaseService.instance.createAttachment(attachmentWithNoteId);
+      }
       
       // Save as HTML file
       final filePath = await FileStorageService.instance.saveNoteAsHtml(newNote);
@@ -108,6 +241,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
         updatedAt: now,
         color: _selectedColor,
         reminderDateTime: _reminderDateTime,
+        notebookId: _selectedNotebook?.id,
       );
       await DatabaseService.instance.updateNote(updatedNote);
       
@@ -129,8 +263,16 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
       }
     }
 
-    if (mounted) {
-      Navigator.pop(context, true);
+      if (mounted) {
+        Navigator.pop(context, true);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error saving note: $e')),
+        );
+        Navigator.pop(context, false);
+      }
     }
   }
 
@@ -319,6 +461,11 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
             },
           ),
           actions: [
+            IconButton(
+              icon: Icon(Icons.attach_file_rounded, size: 22, color: textColor),
+              onPressed: _pickImage,
+              tooltip: 'Attach image',
+            ),
             if (_reminderDateTime != null)
               IconButton(
                 icon: const Icon(Icons.notifications_active_rounded, size: 22),
@@ -401,6 +548,50 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
                     ),
                   );
                 },
+              ),
+            ),
+            // Notebook selector
+            Container(
+              margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+              child: InkWell(
+                onTap: _selectNotebook,
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  decoration: BoxDecoration(
+                    border: Border.all(
+                      color: isDark ? Colors.grey.shade700 : Colors.grey.shade300,
+                    ),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.folder_outlined,
+                        size: 20,
+                        color: isDark ? Colors.grey.shade300 : Colors.grey.shade700,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        _selectedNotebook?.name ?? 'No Notebook',
+                        style: TextStyle(
+                          color: isDark ? Colors.grey.shade300 : Colors.grey.shade700,
+                          fontSize: 14,
+                        ),
+                      ),
+                      const Spacer(),
+                      if (_selectedNotebook != null)
+                        IconButton(
+                          icon: const Icon(Icons.close, size: 18),
+                          onPressed: () {
+                            setState(() => _selectedNotebook = null);
+                          },
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                        ),
+                    ],
+                  ),
+                ),
               ),
             ),
             // Reminder info
@@ -578,6 +769,48 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
                       maxLines: null,
                       autofocus: widget.note == null,
                     ),
+                    // Attachments Section
+                    if (_attachments.isNotEmpty) ...[
+                      const SizedBox(height: 24),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: _attachments.map((attachment) {
+                          return Stack(
+                            children: [
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: Image.file(
+                                  File(attachment.filePath),
+                                  width: 100,
+                                  height: 100,
+                                  fit: BoxFit.cover,
+                                ),
+                              ),
+                              Positioned(
+                                top: 4,
+                                right: 4,
+                                child: GestureDetector(
+                                  onTap: () => _removeAttachment(attachment),
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      color: Colors.black.withValues(alpha: 0.6),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    padding: const EdgeInsets.all(4),
+                                    child: const Icon(
+                                      Icons.close,
+                                      color: Colors.white,
+                                      size: 16,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          );
+                        }).toList(),
+                      ),
+                    ],
                     // Related Notes Section
                     if (_relatedNotes.isNotEmpty) ...[
                       const SizedBox(height: 32),

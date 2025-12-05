@@ -11,6 +11,9 @@ class Note {
   final bool isPinned;
   final DateTime? reminderDateTime;
   final String? filePath; // Path to individual HTML file
+  final bool isDeleted; // Soft delete flag
+  final DateTime? deletedAt; // When note was deleted
+  final String? notebookId; // Notebook/folder this note belongs to
 
   Note({
     required this.id,
@@ -25,6 +28,9 @@ class Note {
     this.isPinned = false,
     this.reminderDateTime,
     this.filePath,
+    this.isDeleted = false,
+    this.deletedAt,
+    this.notebookId,
   });
 
   Map<String, dynamic> toMap() {
@@ -41,6 +47,9 @@ class Note {
       'isPinned': isPinned ? 1 : 0,
       'reminderDateTime': reminderDateTime?.toIso8601String(),
       'filePath': filePath,
+      'isDeleted': isDeleted ? 1 : 0,
+      'deletedAt': deletedAt?.toIso8601String(),
+      'notebookId': notebookId,
     };
   }
 
@@ -61,6 +70,11 @@ class Note {
           ? DateTime.parse(map['reminderDateTime'] as String)
           : null,
       filePath: map['filePath'] as String?,
+      isDeleted: map['isDeleted'] == 1 || map['isDeleted'] == true,
+      deletedAt: map['deletedAt'] != null
+          ? DateTime.parse(map['deletedAt'] as String)
+          : null,
+      notebookId: map['notebookId'] as String?,
     );
   }
 
@@ -77,6 +91,9 @@ class Note {
     bool? isPinned,
     DateTime? reminderDateTime,
     String? filePath,
+    bool? isDeleted,
+    DateTime? deletedAt,
+    String? notebookId,
     bool clearReminder = false,
   }) {
     return Note(
@@ -94,6 +111,9 @@ class Note {
           ? null
           : (reminderDateTime ?? this.reminderDateTime),
       filePath: filePath ?? this.filePath,
+      isDeleted: isDeleted ?? this.isDeleted,
+      deletedAt: deletedAt ?? this.deletedAt,
+      notebookId: notebookId ?? this.notebookId,
     );
   }
 }

@@ -2,10 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../models/note.dart';
+import '../models/notebook.dart';
 import '../services/database_service.dart';
 import '../services/notification_service.dart';
 import '../providers/theme_provider.dart';
 import 'note_editor_screen.dart';
+import 'trash_screen.dart';
+import 'notebooks_screen.dart';
 
 class NotesScreen extends StatefulWidget {
   const NotesScreen({super.key});
@@ -17,6 +20,8 @@ class NotesScreen extends StatefulWidget {
 class _NotesScreenState extends State<NotesScreen> {
   List<Note> _notes = [];
   List<Note> _filteredNotes = [];
+  List<Notebook> _notebooks = [];
+  Notebook? _selectedNotebook;
   bool _isLoading = true;
   bool _isSearching = false;
   final TextEditingController _searchController = TextEditingController();
@@ -36,16 +41,55 @@ class _NotesScreenState extends State<NotesScreen> {
   void initState() {
     super.initState();
     _loadNotes();
+    _loadNotebooks();
   }
 
   Future<void> _loadNotes() async {
     setState(() => _isLoading = true);
-    final notes = await DatabaseService.instance.getAllNotes();
-    setState(() {
-      _notes = notes;
-      _filteredNotes = notes;
-      _isLoading = false;
-    });
+    try {
+      final notes = _selectedNotebook == null
+          ? await DatabaseService.instance.getAllNotes()
+          : await DatabaseService.instance.getNotesByNotebook(_selectedNotebook!.id);
+      setState(() {
+        _notes = notes;
+        _filteredNotes = notes;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() => _isLoading = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error loading notes: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _loadNotebooks() async {
+    try {
+      final notebooks = await DatabaseService.instance.getAllNotebooks();
+      setState(() {
+        _notebooks = notebooks;
+      });
+    } catch (e) {
+      // Silently fail for notebooks as it's not critical for main view
+      print('Error loading notebooks: $e');
+    }
+  }
+
+  Future<void> _selectNotebook() async {
+    final result = await Navigator.push<Notebook>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const NotebooksScreen(),
+      ),
+    );
+    if (result != null && mounted) {
+      setState(() {
+        _selectedNotebook = result;
+      });
+      _loadNotes();
+    }
   }
 
   void _searchNotes(String query) {
@@ -115,6 +159,15 @@ class _NotesScreenState extends State<NotesScreen> {
         backgroundColor: isDark ? const Color(0xFF1F1F1F) : Colors.white,
         elevation: 0.5,
         shadowColor: Colors.black.withValues(alpha: 0.1),
+        leading: Builder(
+          builder: (context) => IconButton(
+            icon: Icon(
+              Icons.menu,
+              color: isDark ? Colors.grey.shade300 : Colors.grey.shade700,
+            ),
+            onPressed: () => Scaffold.of(context).openDrawer(),
+          ),
+        ),
         title: _isSearching
             ? TextField(
                 controller: _searchController,
@@ -178,6 +231,100 @@ class _NotesScreenState extends State<NotesScreen> {
           ),
           const SizedBox(width: 4),
         ],
+      ),
+      drawer: Drawer(
+        child: ListView(
+          padding: EdgeInsets.zero,
+          children: [
+            DrawerHeader(
+              decoration: const BoxDecoration(
+                color: Color(0xFF2DBD6C),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  const Icon(
+                    Icons.edit_note,
+                    color: Colors.white,
+                    size: 48,
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Nova',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  Text(
+                    'Note Taking App',
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.9),
+                      fontSize: 14,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.note),
+              title: const Text('All Notes'),
+              selected: _selectedNotebook == null,
+              onTap: () {
+                Navigator.pop(context);
+                setState(() => _selectedNotebook = null);
+                _loadNotes();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.folder),
+              title: const Text('Notebooks'),
+              trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+              onTap: () {
+                Navigator.pop(context);
+                _selectNotebook();
+              },
+            ),
+            if (_selectedNotebook != null)
+              ListTile(
+                leading: const SizedBox(width: 24),
+                title: Text(_selectedNotebook!.name),
+                selected: true,
+                dense: true,
+                trailing: IconButton(
+                  icon: const Icon(Icons.close, size: 18),
+                  onPressed: () {
+                    setState(() => _selectedNotebook = null);
+                    _loadNotes();
+                  },
+                ),
+              ),
+            ListTile(
+              leading: const Icon(Icons.delete_outline),
+              title: const Text('Trash'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const TrashScreen(),
+                  ),
+                ).then((_) => _loadNotes()); // Reload notes when returning
+              },
+            ),
+            const Divider(),
+            ListTile(
+              leading: Icon(isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined),
+              title: Text(isDark ? 'Light Mode' : 'Dark Mode'),
+              onTap: () {
+                themeProvider.toggleTheme();
+                Navigator.pop(context);
+              },
+            ),
+          ],
+        ),
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
