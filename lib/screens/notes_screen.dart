@@ -93,6 +93,17 @@ class _NotesScreenState extends State<NotesScreen> {
     return Color(colorValue);
   }
 
+  bool _isCardColorLight(int colorValue, bool isDark) {
+    // If it's the default white color, check the theme
+    if (colorValue == 0xFFFFFFFF) {
+      return !isDark;
+    }
+    // Calculate luminance for colored cards
+    final color = Color(colorValue);
+    final luminance = (0.299 * color.red + 0.587 * color.green + 0.114 * color.blue) / 255;
+    return luminance > 0.5;
+  }
+
   @override
   Widget build(BuildContext context) {
     final themeProvider = Provider.of<ThemeProvider>(context);
@@ -238,6 +249,9 @@ class _NotesScreenState extends State<NotesScreen> {
 
   Widget _buildNoteCard(Note note, bool isDark) {
     final cardColor = _getNoteColor(note.color, isDark);
+    final cardIsLight = _isCardColorLight(note.color, isDark);
+    final textColor = cardIsLight ? Colors.black87 : Colors.white;
+    final secondaryTextColor = cardIsLight ? Colors.grey.shade700 : Colors.grey.shade300;
     
     return Card(
       color: cardColor,
@@ -278,7 +292,7 @@ class _NotesScreenState extends State<NotesScreen> {
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
-                          color: isDark ? Colors.grey.shade100 : Colors.black87,
+                          color: textColor,
                           height: 1.3,
                         ),
                         maxLines: 2,
@@ -302,7 +316,7 @@ class _NotesScreenState extends State<NotesScreen> {
                   note.content,
                   style: TextStyle(
                     fontSize: 14,
-                    color: isDark ? Colors.grey.shade400 : Colors.grey.shade700,
+                    color: secondaryTextColor,
                     height: 1.4,
                   ),
                   maxLines: 8,
@@ -325,7 +339,7 @@ class _NotesScreenState extends State<NotesScreen> {
                       DateFormat('MMM d, y').format(note.updatedAt),
                       style: TextStyle(
                         fontSize: 11,
-                        color: isDark ? Colors.grey.shade500 : Colors.grey.shade500,
+                        color: cardIsLight ? Colors.grey.shade500 : Colors.grey.shade400,
                         fontWeight: FontWeight.w400,
                       ),
                     ),
@@ -335,7 +349,7 @@ class _NotesScreenState extends State<NotesScreen> {
                     icon: Icon(
                       Icons.more_horiz,
                       size: 18,
-                      color: isDark ? Colors.grey.shade500 : Colors.grey.shade600,
+                      color: secondaryTextColor,
                     ),
                     onSelected: (value) {
                       if (value == 'pin') {
