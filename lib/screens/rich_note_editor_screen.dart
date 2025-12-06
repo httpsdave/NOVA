@@ -18,6 +18,7 @@ import '../services/database_service.dart';
 import '../services/notification_service.dart';
 import '../services/file_storage_service.dart';
 import 'notebooks_screen.dart';
+import 'version_history_screen.dart';
 
 class RichNoteEditorScreen extends StatefulWidget {
   final Note? note;
@@ -409,6 +410,42 @@ ${_descriptionController.text.isNotEmpty ? '${_descriptionController.text}\n\n' 
     }
   }
 
+  Future<void> _showVersionHistory() async {
+    if (widget.note == null) return;
+    
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => VersionHistoryScreen(
+          noteId: widget.note!.id,
+          noteTitle: widget.note!.title,
+        ),
+      ),
+    );
+    
+    // If a version was restored, reload the note
+    if (result == true && mounted) {
+      final updatedNote = await DatabaseService.instance.getNote(widget.note!.id);
+      if (updatedNote != null) {
+        setState(() {
+          _titleController.text = updatedNote.title;
+          _descriptionController.text = updatedNote.description;
+          _selectedColor = updatedNote.color;
+          _tags.clear();
+          _tags.addAll(updatedNote.tags);
+          
+          // Reload quill content
+          try {
+            final delta = quill.Document.fromJson(jsonDecode(updatedNote.htmlContent));
+            _quillController.document = delta;
+          } catch (e) {
+            _quillController.document = quill.Document()..insert(0, updatedNote.content);
+          }
+        });
+      }
+    }
+  }
+
   void _showTemplateDialog() {
     showDialog(
       context: context,
@@ -502,6 +539,13 @@ ${_descriptionController.text.isNotEmpty ? '${_descriptionController.text}\n\n' 
           onPressed: () => Navigator.pop(context, false),
         ),
         actions: [
+          // Only show version history button if note exists
+          if (widget.note != null)
+            IconButton(
+              icon: const Icon(Icons.history),
+              tooltip: 'Version History',
+              onPressed: _showVersionHistory,
+            ),
           IconButton(
             icon: const Icon(Icons.description),
             tooltip: 'Templates',

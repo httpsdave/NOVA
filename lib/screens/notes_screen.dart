@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/note.dart';
 import '../models/notebook.dart';
+import '../models/sort_option.dart';
 import '../services/database_service.dart';
 import '../services/notification_service.dart';
 import '../providers/theme_provider.dart';
@@ -25,6 +27,9 @@ class _NotesScreenState extends State<NotesScreen> {
   bool _isLoading = true;
   bool _isSearching = false;
   final TextEditingController _searchController = TextEditingController();
+  SortOption _currentSort = SortOption.updatedDesc; // Default sort
+  bool _isSelectionMode = false;
+  Set<String> _selectedNoteIds = {};
 
   final List<Color> _noteColors = [
     Colors.white,
@@ -40,8 +45,52 @@ class _NotesScreenState extends State<NotesScreen> {
   @override
   void initState() {
     super.initState();
+    _loadSortPreference();
     _loadNotes();
     _loadNotebooks();
+  }
+
+  Future<void> _loadSortPreference() async {
+    final prefs = await SharedPreferences.getInstance();
+    final sortKey = prefs.getString('note_sort_preference');
+    if (sortKey != null) {
+      setState(() {
+        _currentSort = SortOption.values.firstWhere(
+          (s) => s.key == sortKey,
+          orElse: () => SortOption.updatedDesc,
+        );
+      });
+    }
+  }
+
+  Future<void> _saveSortPreference(SortOption sort) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('note_sort_preference', sort.key);
+  }
+
+  void _applySorting() {
+    switch (_currentSort) {
+      case SortOption.updatedDesc:
+        _filteredNotes.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+      case SortOption.updatedAsc:
+        _filteredNotes.sort((a, b) => a.updatedAt.compareTo(b.updatedAt));
+      case SortOption.createdDesc:
+        _filteredNotes.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      case SortOption.createdAsc:
+        _filteredNotes.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+      case SortOption.titleAsc:
+        _filteredNotes.sort((a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()));
+      case SortOption.titleDesc:
+        _filteredNotes.sort((a, b) => b.title.toLowerCase().compareTo(a.title.toLowerCase()));
+      case SortOption.colorAsc:
+        _filteredNotes.sort((a, b) => a.color.compareTo(b.color));
+      case SortOption.colorDesc:
+        _filteredNotes.sort((a, b) => b.color.compareTo(a.color));
+      case SortOption.sizeDesc:
+        _filteredNotes.sort((a, b) => b.content.length.compareTo(a.content.length));
+      case SortOption.sizeAsc:
+        _filteredNotes.sort((a, b) => a.content.length.compareTo(b.content.length));
+    }
   }
 
   Future<void> _loadNotes() async {
@@ -53,6 +102,7 @@ class _NotesScreenState extends State<NotesScreen> {
       setState(() {
         _notes = notes;
         _filteredNotes = notes;
+        _applySorting();
         _isLoading = false;
       });
     } catch (e) {
@@ -95,6 +145,7 @@ class _NotesScreenState extends State<NotesScreen> {
     if (query.isEmpty) {
       setState(() {
         _filteredNotes = _notes;
+        _applySorting();
       });
       return;
     }
@@ -104,6 +155,7 @@ class _NotesScreenState extends State<NotesScreen> {
         return note.title.toLowerCase().contains(query.toLowerCase()) ||
             note.content.toLowerCase().contains(query.toLowerCase());
       }).toList();
+      _applySorting();
     });
   }
 
@@ -127,6 +179,272 @@ class _NotesScreenState extends State<NotesScreen> {
     );
     await DatabaseService.instance.updateNote(updatedNote);
     _loadNotes();
+  }
+
+  void _toggleSelectionMode() {
+    setState(() {
+      _isSelectionMode = !_isSelectionMode;
+      if (!_isSelectionMode) {
+        _selectedNoteIds.clear();
+      }
+    });
+  }
+
+  void _toggleNoteSelection(String noteId) {
+    setState(() {
+      if (_selectedNoteIds.contains(noteId)) {
+        _selectedNoteIds.remove(noteId);
+      } else {
+        _selectedNoteIds.add(noteId);
+      }
+    });
+  }
+
+  void _selectAll() {
+    setState(() {
+      _selectedNoteIds.addAll(_filteredNotes.map((n) => n.id));
+    });
+  }
+
+  Future<void> _bulkDelete() async {
+    if (_selectedNoteIds.isEmpty) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Notes'),
+        content: Text('Move ${_selectedNoteIds.length} note(s) to trash?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      for (final noteId in _selectedNoteIds) {
+        await DatabaseService.instance.deleteNote(noteId);
+      }
+      setState(() {
+        _selectedNoteIds.clear();
+        _isSelectionMode = false;
+      });
+      _loadNotes();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Notes moved to trash')),
+        );
+      }
+    }
+  }
+
+  Future<void> _bulkMove() async {
+    if (_selectedNoteIds.isEmpty) return;
+
+    final notebooks = await DatabaseService.instance.getAllNotebooks();
+    if (!mounted) return;
+
+    final selectedNotebook = await showDialog<Notebook?>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Move to Notebook'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: ListView.builder(
+            shrinkWrap: true,
+            itemCount: notebooks.length + 1,
+            itemBuilder: (context, index) {
+              if (index == 0) {
+                return ListTile(
+                  leading: const Icon(Icons.clear),
+                  title: const Text('No Notebook'),
+                  onTap: () => Navigator.pop(context, null),
+                );
+              }
+              final notebook = notebooks[index - 1];
+              return ListTile(
+                leading: Icon(Icons.folder, color: Color(notebook.color)),
+                title: Text(notebook.name),
+                onTap: () => Navigator.pop(context, notebook),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+
+    if (mounted) {
+      for (final noteId in _selectedNoteIds) {
+        final note = _notes.firstWhere((n) => n.id == noteId);
+        final updatedNote = note.copyWith(
+          notebookId: selectedNotebook?.id,
+          updatedAt: DateTime.now(),
+        );
+        await DatabaseService.instance.updateNote(updatedNote);
+      }
+      setState(() {
+        _selectedNoteIds.clear();
+        _isSelectionMode = false;
+      });
+      _loadNotes();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            selectedNotebook == null
+                ? 'Notes removed from notebook'
+                : 'Notes moved to ${selectedNotebook.name}',
+          ),
+        ),
+      );
+    }
+  }
+
+  Future<void> _bulkChangeColor() async {
+    if (_selectedNoteIds.isEmpty) return;
+
+    final selectedColor = await showDialog<int?>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Choose Color'),
+        content: Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: _noteColors.map((color) {
+            return InkWell(
+              onTap: () => Navigator.pop(context, color.value),
+              child: Container(
+                width: 50,
+                height: 50,
+                decoration: BoxDecoration(
+                  color: color,
+                  border: Border.all(color: Colors.grey.shade300, width: 2),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ),
+    );
+
+    if (selectedColor != null && mounted) {
+      for (final noteId in _selectedNoteIds) {
+        final note = _notes.firstWhere((n) => n.id == noteId);
+        final updatedNote = note.copyWith(
+          color: selectedColor,
+          updatedAt: DateTime.now(),
+        );
+        await DatabaseService.instance.updateNote(updatedNote);
+      }
+      setState(() {
+        _selectedNoteIds.clear();
+        _isSelectionMode = false;
+      });
+      _loadNotes();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Color updated')),
+      );
+    }
+  }
+
+  Future<void> _bulkAddTags() async {
+    if (_selectedNoteIds.isEmpty) return;
+
+    final tagController = TextEditingController();
+    final tags = await showDialog<List<String>?>(
+      context: context,
+      builder: (context) {
+        final tempTags = <String>[];
+        return StatefulBuilder(
+          builder: (context, setState) => AlertDialog(
+            title: const Text('Add Tags'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: tagController,
+                  decoration: InputDecoration(
+                    hintText: 'Enter tag',
+                    suffixIcon: IconButton(
+                      icon: const Icon(Icons.add),
+                      onPressed: () {
+                        if (tagController.text.isNotEmpty) {
+                          setState(() {
+                            tempTags.add(tagController.text.trim());
+                            tagController.clear();
+                          });
+                        }
+                      },
+                    ),
+                  ),
+                  onSubmitted: (value) {
+                    if (value.isNotEmpty) {
+                      setState(() {
+                        tempTags.add(value.trim());
+                        tagController.clear();
+                      });
+                    }
+                  },
+                ),
+                const SizedBox(height: 16),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: tempTags.map((tag) {
+                    return Chip(
+                      label: Text(tag),
+                      deleteIcon: const Icon(Icons.close, size: 18),
+                      onDeleted: () {
+                        setState(() {
+                          tempTags.remove(tag);
+                        });
+                      },
+                    );
+                  }).toList(),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, null),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(context, tempTags),
+                child: const Text('Add'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (tags != null && tags.isNotEmpty && mounted) {
+      for (final noteId in _selectedNoteIds) {
+        final note = _notes.firstWhere((n) => n.id == noteId);
+        final updatedTags = {...note.tags, ...tags}.toList();
+        final updatedNote = note.copyWith(
+          tags: updatedTags,
+          updatedAt: DateTime.now(),
+        );
+        await DatabaseService.instance.updateNote(updatedNote);
+      }
+      setState(() {
+        _selectedNoteIds.clear();
+        _isSelectionMode = false;
+      });
+      _loadNotes();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Tags added')),
+      );
+    }
   }
 
   Color _getNoteColor(int colorValue, bool isDark) {
@@ -167,69 +485,135 @@ class _NotesScreenState extends State<NotesScreen> {
             onPressed: () => Scaffold.of(context).openDrawer(),
           ),
         ),
-        title: _isSearching
-            ? TextField(
-                controller: _searchController,
-                autofocus: true,
-                style: TextStyle(
-                  fontSize: 16,
-                  color: isDark ? Colors.white : Colors.black87,
-                ),
-                decoration: InputDecoration(
-                  hintText: 'Search notes...',
-                  hintStyle: TextStyle(
-                    color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
-                  ),
-                  border: InputBorder.none,
-                  contentPadding: EdgeInsets.zero,
-                ),
-                onChanged: _searchNotes,
-              )
-            : Row(
-                children: [
-                  Icon(
-                    Icons.edit_note,
-                    color: const Color(0xFF2DBD6C),
-                    size: 28,
-                  ),
-                  const SizedBox(width: 12),
-                  const Text(
-                    'Nova',
+        title: _isSelectionMode
+            ? Text('${_selectedNoteIds.length} selected')
+            : _isSearching
+                ? TextField(
+                    controller: _searchController,
+                    autofocus: true,
                     style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 0.5,
+                      fontSize: 16,
+                      color: isDark ? Colors.white : Colors.black87,
                     ),
+                    decoration: InputDecoration(
+                      hintText: 'Search notes...',
+                      hintStyle: TextStyle(
+                        color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+                      ),
+                      border: InputBorder.none,
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                    onChanged: _searchNotes,
+                  )
+                : Row(
+                    children: [
+                      Icon(
+                        Icons.edit_note,
+                        color: const Color(0xFF2DBD6C),
+                        size: 28,
+                      ),
+                      const SizedBox(width: 12),
+                      const Text(
+                        'Nova',
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-        actions: [
-          IconButton(
-            icon: Icon(
-              _isSearching ? Icons.close : Icons.search_rounded,
-              color: isDark ? Colors.grey.shade300 : Colors.grey.shade700,
-            ),
-            onPressed: () {
-              setState(() {
-                if (_isSearching) {
-                  _isSearching = false;
-                  _searchController.clear();
-                  _filteredNotes = _notes;
-                } else {
-                  _isSearching = true;
-                }
-              });
-            },
-          ),
-          IconButton(
-            icon: Icon(
-              isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined,
-              color: isDark ? Colors.grey.shade300 : Colors.grey.shade700,
-            ),
-            onPressed: () => themeProvider.toggleTheme(),
-          ),
-          const SizedBox(width: 4),
-        ],
+        actions: _isSelectionMode
+            ? [
+                if (_selectedNoteIds.length < _filteredNotes.length)
+                  IconButton(
+                    icon: const Icon(Icons.select_all),
+                    tooltip: 'Select All',
+                    onPressed: _selectAll,
+                  ),
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  tooltip: 'Cancel Selection',
+                  onPressed: _toggleSelectionMode,
+                ),
+              ]
+            : [
+                PopupMenuButton<SortOption>(
+                  icon: Icon(
+                    Icons.sort,
+                    color: isDark ? Colors.grey.shade300 : Colors.grey.shade700,
+                  ),
+                  tooltip: 'Sort Notes',
+                  onSelected: (SortOption sort) {
+                    setState(() {
+                      _currentSort = sort;
+                      _applySorting();
+                    });
+                    _saveSortPreference(sort);
+                  },
+                  itemBuilder: (context) => SortOption.values.map((sort) {
+                    return PopupMenuItem<SortOption>(
+                      value: sort,
+                      child: Row(
+                        children: [
+                          if (_currentSort == sort)
+                            const Icon(
+                              Icons.check,
+                              color: Color(0xFF2DBD6C),
+                              size: 20,
+                            )
+                          else
+                            const SizedBox(width: 20),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              sort.displayName,
+                              style: TextStyle(
+                                fontWeight: _currentSort == sort ? FontWeight.bold : FontWeight.normal,
+                                color: _currentSort == sort ? const Color(0xFF2DBD6C) : null,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                ),
+                IconButton(
+                  icon: Icon(
+                    Icons.checklist,
+                    color: isDark ? Colors.grey.shade300 : Colors.grey.shade700,
+                  ),
+                  tooltip: 'Select Multiple',
+                  onPressed: _toggleSelectionMode,
+                ),
+                IconButton(
+                  icon: Icon(
+                    _isSearching ? Icons.close : Icons.search_rounded,
+                    color: isDark ? Colors.grey.shade300 : Colors.grey.shade700,
+                  ),
+                  onPressed: () {
+                    setState(() {
+                      if (_isSearching) {
+                        _isSearching = false;
+                        _searchController.clear();
+                        _filteredNotes = _notes;
+                        _applySorting();
+                      } else {
+                        _isSearching = true;
+                      }
+                    });
+                  },
+                ),
+                IconButton(
+                  icon: Icon(
+                    isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined,
+                    color: isDark ? Colors.grey.shade300 : Colors.grey.shade700,
+                  ),
+                  onPressed: () => themeProvider.toggleTheme(),
+                ),
+                const SizedBox(width: 4),
+              ],
       ),
       drawer: Drawer(
         child: ListView(
@@ -338,55 +722,101 @@ class _NotesScreenState extends State<NotesScreen> {
           ],
         ),
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _filteredNotes.isEmpty
-          ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
+      body: Column(
+        children: [
+          // Bulk action bar
+          if (_isSelectionMode && _selectedNoteIds.isNotEmpty)
+            Container(
+              color: const Color(0xFF2DBD6C).withOpacity(0.1),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Row(
                 children: [
-                  Icon(
-                    Icons.note_outlined,
-                    size: 80,
-                    color: isDark ? Colors.grey.shade700 : Colors.grey.shade300,
-                  ),
-                  const SizedBox(height: 24),
-                  Text(
-                    _isSearching ? 'No notes found' : 'Create your first note',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w500,
-                      color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  if (!_isSearching)
-                    Text(
-                      'Capture your thoughts and ideas',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: isDark ? Colors.grey.shade500 : Colors.grey.shade500,
+                  Expanded(
+                    child: Text(
+                      '${_selectedNoteIds.length} note(s) selected',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF2DBD6C),
                       ),
                     ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.folder, color: Color(0xFF2DBD6C)),
+                    tooltip: 'Move to Notebook',
+                    onPressed: _bulkMove,
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.palette, color: Color(0xFF2DBD6C)),
+                    tooltip: 'Change Color',
+                    onPressed: _bulkChangeColor,
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.local_offer, color: Color(0xFF2DBD6C)),
+                    tooltip: 'Add Tags',
+                    onPressed: _bulkAddTags,
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.delete, color: Colors.red),
+                    tooltip: 'Delete',
+                    onPressed: _bulkDelete,
+                  ),
                 ],
               ),
-            )
-          : RefreshIndicator(
-              onRefresh: _loadNotes,
-              child: Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: MasonryGridView.count(
-                  crossAxisCount: 2,
-                  mainAxisSpacing: 8,
-                  crossAxisSpacing: 8,
-                  itemCount: _filteredNotes.length,
-                  itemBuilder: (context, index) {
-                    final note = _filteredNotes[index];
-                    return _buildNoteCard(note, isDark);
-                  },
-                ),
-              ),
             ),
+          // Main content
+          Expanded(
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : _filteredNotes.isEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.note_outlined,
+                              size: 80,
+                              color: isDark ? Colors.grey.shade700 : Colors.grey.shade300,
+                            ),
+                            const SizedBox(height: 24),
+                            Text(
+                              _isSearching ? 'No notes found' : 'Create your first note',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w500,
+                                color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            if (!_isSearching)
+                              Text(
+                                'Capture your thoughts and ideas',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: isDark ? Colors.grey.shade500 : Colors.grey.shade500,
+                                ),
+                              ),
+                          ],
+                        ),
+                      )
+                    : RefreshIndicator(
+                        onRefresh: _loadNotes,
+                        child: Padding(
+                          padding: const EdgeInsets.all(8.0),
+                          child: MasonryGridView.count(
+                            crossAxisCount: 2,
+                            mainAxisSpacing: 8,
+                            crossAxisSpacing: 8,
+                            itemCount: _filteredNotes.length,
+                            itemBuilder: (context, index) {
+                              final note = _filteredNotes[index];
+                              return _buildNoteCard(note, isDark);
+                            },
+                          ),
+                        ),
+                      ),
+          ),
+        ],
+      ),
       floatingActionButton: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -488,29 +918,46 @@ class _NotesScreenState extends State<NotesScreen> {
     final cardIsLight = _isCardColorLight(note.color, isDark);
     final textColor = cardIsLight ? Colors.black87 : Colors.white;
     final secondaryTextColor = cardIsLight ? Colors.grey.shade700 : Colors.grey.shade300;
+    final isSelected = _selectedNoteIds.contains(note.id);
     
     return Card(
       color: cardColor,
-      elevation: 1,
-      shadowColor: Colors.black.withValues(alpha: isDark ? 0.3 : 0.08),
+      elevation: isSelected ? 4 : 1,
+      shadowColor: isSelected 
+        ? const Color(0xFF2DBD6C).withOpacity(0.5)
+        : Colors.black.withValues(alpha: isDark ? 0.3 : 0.08),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(8),
         side: BorderSide(
-          color: isDark ? Colors.grey.shade800 : Colors.grey.shade200,
-          width: 0.5,
+          color: isSelected 
+            ? const Color(0xFF2DBD6C) 
+            : isDark ? Colors.grey.shade800 : Colors.grey.shade200,
+          width: isSelected ? 2 : 0.5,
         ),
       ),
       child: InkWell(
         onTap: () async {
-          final result = await Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) =>
-                  RichNoteEditorScreen(note: note, availableColors: _noteColors),
-            ),
-          );
-          if (result == true) {
-            _loadNotes();
+          if (_isSelectionMode) {
+            _toggleNoteSelection(note.id);
+          } else {
+            final result = await Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) =>
+                    RichNoteEditorScreen(note: note, availableColors: _noteColors),
+              ),
+            );
+            if (result == true) {
+              _loadNotes();
+            }
+          }
+        },
+        onLongPress: () {
+          if (!_isSelectionMode) {
+            setState(() {
+              _isSelectionMode = true;
+              _selectedNoteIds.add(note.id);
+            });
           }
         },
         borderRadius: BorderRadius.circular(8),
@@ -519,6 +966,19 @@ class _NotesScreenState extends State<NotesScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              if (_isSelectionMode) ...[
+                Row(
+                  children: [
+                    Checkbox(
+                      value: isSelected,
+                      onChanged: (value) => _toggleNoteSelection(note.id),
+                      activeColor: const Color(0xFF2DBD6C),
+                    ),
+                    const Spacer(),
+                  ],
+                ),
+                const SizedBox(height: 8),
+              ],
               if (note.title.isNotEmpty) ...[
                 Row(
                   children: [

@@ -4,6 +4,7 @@ import '../models/note.dart';
 import '../models/task.dart';
 import '../models/notebook.dart';
 import '../models/attachment.dart';
+import '../models/note_version.dart';
 
 class DatabaseService {
   static final DatabaseService instance = DatabaseService._init();
@@ -24,7 +25,7 @@ class DatabaseService {
 
       return await openDatabase(
         path,
-        version: 5, // Increment version for attachments
+        version: 6, // Increment version for version history
         onCreate: _createDB,
         onUpgrade: _onUpgrade,
       );
@@ -71,6 +72,22 @@ class DatabaseService {
           fileType TEXT NOT NULL,
           fileSize INTEGER NOT NULL,
           createdAt TEXT NOT NULL
+        )
+      ''');
+    }
+    if (oldVersion < 6) {
+      // Add note versions table for version history
+      await db.execute('''
+        CREATE TABLE note_versions (
+          id TEXT PRIMARY KEY,
+          noteId TEXT NOT NULL,
+          title TEXT NOT NULL,
+          content TEXT NOT NULL,
+          htmlContent TEXT,
+          description TEXT,
+          tags TEXT,
+          createdAt TEXT NOT NULL,
+          color INTEGER NOT NULL
         )
       ''');
     }
@@ -136,6 +153,20 @@ class DatabaseService {
         createdAt $textType
       )
     ''');
+
+    await db.execute('''
+      CREATE TABLE note_versions (
+        id $idType,
+        noteId $textType,
+        title $textType,
+        content $textType,
+        htmlContent TEXT,
+        description TEXT,
+        tags TEXT,
+        createdAt $textType,
+        color $intType
+      )
+    ''');
   }
 
   // Notes operations
@@ -184,6 +215,24 @@ class DatabaseService {
 
   Future<int> updateNote(Note note) async {
     final db = await instance.database;
+    
+    // Create version history before updating
+    final oldNote = await getNote(note.id);
+    if (oldNote != null) {
+      final version = NoteVersion(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        noteId: oldNote.id,
+        title: oldNote.title,
+        content: oldNote.content,
+        htmlContent: oldNote.htmlContent,
+        description: oldNote.description,
+        tags: oldNote.tags,
+        createdAt: DateTime.now(),
+        color: oldNote.color,
+      );
+      await createNoteVersion(version);
+    }
+    
     return db.update(
       'notes',
       note.toMap(),
@@ -409,6 +458,72 @@ class DatabaseService {
   Future<int> deleteAttachmentsByNote(String noteId) async {
     final db = await instance.database;
     return await db.delete('attachments', where: 'noteId = ?', whereArgs: [noteId]);
+  }
+
+  // Note version history operations
+  Future<NoteVersion> createNoteVersion(NoteVersion version) async {
+    final db = await instance.database;
+    await db.insert('note_versions', version.toMap());
+    return version;
+  }
+
+  Future<List<NoteVersion>> getNoteVersions(String noteId) async {
+    final db = await instance.database;
+    final result = await db.query(
+      'note_versions',
+      where: 'noteId = ?',
+      whereArgs: [noteId],
+      orderBy: 'createdAt DESC',
+    );
+    return result.map((map) => NoteVersion.fromMap(map)).toList();
+  }
+
+  Future<void> restoreNoteVersion(NoteVersion version) async {
+    final db = await instance.database;
+    
+    // Get current note to preserve certain fields
+    final currentNote = await getNote(version.noteId);
+    if (currentNote == null) return;
+    
+    // Create a new version from current state before restoring
+    final backupVersion = NoteVersion(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      noteId: currentNote.id,
+      title: currentNote.title,
+      content: currentNote.content,
+      htmlContent: currentNote.htmlContent,
+      description: currentNote.description,
+      tags: currentNote.tags,
+      createdAt: DateTime.now(),
+      color: currentNote.color,
+    );
+    await createNoteVersion(backupVersion);
+    
+    // Restore the note with version data, keeping some current fields
+    await db.update(
+      'notes',
+      {
+        'title': version.title,
+        'content': version.content,
+        'htmlContent': version.htmlContent,
+        'description': version.description,
+        'tags': version.tags.join(','),
+        'color': version.color,
+        'updatedAt': DateTime.now().toIso8601String(),
+      },
+      where: 'id = ?',
+      whereArgs: [version.noteId],
+    );
+  }
+
+  Future<int> deleteNoteVersion(String id) async {
+    final db = await instance.database;
+    return await db.delete('note_versions', where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<int> deleteNoteVersionsByNote(String noteId) async {
+    final db = await instance.database;
+    return await db.delete('note_versions', where: 'noteId = ?', whereArgs: [noteId]);
   }
 
   Future<void> close() async {
