@@ -125,4 +125,39 @@ class NotificationService {
 
     await _notifications.show(id, title, body, details);
   }
+
+  Future<void> showPersistentQuickNoteNotification() async {
+    const androidDetails = AndroidNotificationDetails(
+      'nova_quick_note',
+      'Quick Note',
+      channelDescription: 'Persistent notification for quick note creation',
+      importance: Importance.low,
+      priority: Priority.low,
+      icon: '@mipmap/ic_launcher',
+      ongoing: true,
+      autoCancel: false,
+      actions: <AndroidNotificationAction>[
+        AndroidNotificationAction(
+          'new_note',
+          'New Note',
+          icon: DrawableResourceAndroidBitmap('@mipmap/ic_launcher'),
+        ),
+      ],
+    );
+
+    const details = NotificationDetails(
+      android: androidDetails,
+    );
+
+    await _notifications.show(
+      999, // Fixed ID for persistent notification
+      'Nova',
+      'Tap to create a quick note',
+      details,
+    );
+  }
+
+  Future<void> cancelPersistentQuickNoteNotification() async {
+    await _notifications.cancel(999);
+  }
 }

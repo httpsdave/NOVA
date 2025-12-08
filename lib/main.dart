@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'providers/theme_provider.dart';
 import 'screens/notes_screen.dart';
 import 'screens/tasks_screen.dart';
 import 'screens/lock_screen.dart';
+import 'screens/onboarding_screen.dart';
 import 'services/notification_service.dart';
 import 'services/auth_service.dart';
 
@@ -13,8 +15,31 @@ void main() async {
   runApp(const NovaApp());
 }
 
-class NovaApp extends StatelessWidget {
+class NovaApp extends StatefulWidget {
   const NovaApp({super.key});
+
+  @override
+  State<NovaApp> createState() => _NovaAppState();
+}
+
+class _NovaAppState extends State<NovaApp> {
+  bool _showOnboarding = true;
+  bool _isChecking = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkOnboarding();
+  }
+
+  Future<void> _checkOnboarding() async {
+    final prefs = await SharedPreferences.getInstance();
+    final completed = prefs.getBool('onboarding_completed') ?? false;
+    setState(() {
+      _showOnboarding = !completed;
+      _isChecking = false;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -28,7 +53,13 @@ class NovaApp extends StatelessWidget {
             theme: ThemeProvider.lightTheme(),
             darkTheme: ThemeProvider.darkTheme(),
             themeMode: themeProvider.themeMode,
-            home: const MainScreen(),
+            home: _isChecking
+                ? const Scaffold(body: Center(child: CircularProgressIndicator()))
+                : _showOnboarding
+                    ? OnboardingScreen(
+                        onComplete: () => setState(() => _showOnboarding = false),
+                      )
+                    : const MainScreen(),
           );
         },
       ),

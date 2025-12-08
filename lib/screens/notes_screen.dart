@@ -12,6 +12,7 @@ import 'rich_note_editor_screen.dart';
 import 'trash_screen.dart';
 import 'notebooks_screen.dart';
 import 'security_settings_screen.dart';
+import 'statistics_screen.dart';
 
 class NotesScreen extends StatefulWidget {
   const NotesScreen({super.key});
@@ -706,6 +707,19 @@ class _NotesScreenState extends State<NotesScreen> {
                   context,
                   MaterialPageRoute(
                     builder: (context) => const SecuritySettingsScreen(),
+                  ),
+                );
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.bar_chart),
+              title: const Text('Statistics'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const StatisticsScreen(),
                   ),
                 );
               },

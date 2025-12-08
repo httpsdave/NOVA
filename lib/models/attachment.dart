@@ -6,6 +6,7 @@ class Attachment {
   final String fileType; // 'image', 'audio', 'file'
   final int fileSize;
   final DateTime createdAt;
+  final String? caption; // Caption for images
 
   Attachment({
     required this.id,
@@ -15,6 +16,7 @@ class Attachment {
     required this.fileType,
     required this.fileSize,
     required this.createdAt,
+    this.caption,
   });
 
   Map<String, dynamic> toMap() {
@@ -26,6 +28,7 @@ class Attachment {
       'fileType': fileType,
       'fileSize': fileSize,
       'createdAt': createdAt.toIso8601String(),
+      'caption': caption,
     };
   }
 
@@ -38,6 +41,7 @@ class Attachment {
       fileType: map['fileType'] as String,
       fileSize: map['fileSize'] as int,
       createdAt: DateTime.parse(map['createdAt'] as String),
+      caption: map['caption'] as String?,
     );
   }
 
@@ -49,6 +53,7 @@ class Attachment {
     String? fileType,
     int? fileSize,
     DateTime? createdAt,
+    String? caption,
   }) {
     return Attachment(
       id: id ?? this.id,
@@ -58,6 +63,7 @@ class Attachment {
       fileType: fileType ?? this.fileType,
       fileSize: fileSize ?? this.fileSize,
       createdAt: createdAt ?? this.createdAt,
+      caption: caption ?? this.caption,
     );
   }
 }

@@ -25,7 +25,7 @@ class DatabaseService {
 
       return await openDatabase(
         path,
-        version: 6, // Increment version for version history
+        version: 7, // Increment version for caption support
         onCreate: _createDB,
         onUpgrade: _onUpgrade,
       );
@@ -91,6 +91,10 @@ class DatabaseService {
         )
       ''');
     }
+    if (oldVersion < 7) {
+      // Add caption column to attachments table
+      await db.execute('ALTER TABLE attachments ADD COLUMN caption TEXT');
+    }
   }
 
   Future<void> _createDB(Database db, int version) async {
@@ -150,7 +154,8 @@ class DatabaseService {
         fileName $textType,
         fileType $textType,
         fileSize $intType,
-        createdAt $textType
+        createdAt $textType,
+        caption TEXT
       )
     ''');
 
