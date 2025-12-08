@@ -5,6 +5,8 @@ import '../models/task.dart';
 import '../models/notebook.dart';
 import '../models/attachment.dart';
 import '../models/note_version.dart';
+import '../models/search_filters.dart';
+import 'widget_service.dart';
 
 class DatabaseService {
   static final DatabaseService instance = DatabaseService._init();
@@ -178,6 +180,10 @@ class DatabaseService {
   Future<Note> createNote(Note note) async {
     final db = await instance.database;
     await db.insert('notes', note.toMap());
+    
+    // Update widgets after creating note
+    await WidgetService.instance.updateAllWidgets();
+    
     return note;
   }
 
@@ -238,18 +244,23 @@ class DatabaseService {
       await createNoteVersion(version);
     }
     
-    return db.update(
+    final result = await db.update(
       'notes',
       note.toMap(),
       where: 'id = ?',
       whereArgs: [note.id],
     );
+    
+    // Update widgets after updating note
+    await WidgetService.instance.updateAllWidgets();
+    
+    return result;
   }
 
   Future<int> deleteNote(String id) async {
     // Soft delete - move to trash
     final db = await instance.database;
-    return await db.update(
+    final result = await db.update(
       'notes',
       {
         'isDeleted': 1,
@@ -258,12 +269,17 @@ class DatabaseService {
       where: 'id = ?',
       whereArgs: [id],
     );
+    
+    // Update widgets after deleting note
+    await WidgetService.instance.updateAllWidgets();
+    
+    return result;
   }
 
   Future<int> restoreNote(String id) async {
     // Restore from trash
     final db = await instance.database;
-    return await db.update(
+    final result = await db.update(
       'notes',
       {
         'isDeleted': 0,
@@ -272,12 +288,22 @@ class DatabaseService {
       where: 'id = ?',
       whereArgs: [id],
     );
+    
+    // Update widgets after restoring note
+    await WidgetService.instance.updateAllWidgets();
+    
+    return result;
   }
 
   Future<int> permanentlyDeleteNote(String id) async {
     // Permanently delete from database
     final db = await instance.database;
-    return await db.delete('notes', where: 'id = ?', whereArgs: [id]);
+    final result = await db.delete('notes', where: 'id = ?', whereArgs: [id]);
+    
+    // Update widgets after permanent deletion
+    await WidgetService.instance.updateAllWidgets();
+    
+    return result;
   }
 
   Future<void> deleteOldTrashNotes() async {
@@ -300,6 +326,80 @@ class DatabaseService {
       orderBy: 'isPinned DESC, updatedAt DESC',
     );
     return result.map((map) => Note.fromMap(map)).toList();
+  }
+
+  Future<List<Note>> searchNotesWithFilters(String query, SearchFilters filters) async {
+    final db = await instance.database;
+    
+    // Build WHERE clause
+    List<String> whereClauses = ['isDeleted = 0'];
+    List<dynamic> whereArgs = [];
+    
+    // Text search
+    if (query.isNotEmpty) {
+      whereClauses.add('(title LIKE ? OR content LIKE ? OR description LIKE ? OR tags LIKE ?)');
+      whereArgs.addAll(['%$query%', '%$query%', '%$query%', '%$query%']);
+    }
+    
+    // Notebook filter
+    if (filters.notebookId != null) {
+      whereClauses.add('notebookId = ?');
+      whereArgs.add(filters.notebookId);
+    }
+    
+    // Color filter
+    if (filters.color != null) {
+      whereClauses.add('color = ?');
+      whereArgs.add(filters.color);
+    }
+    
+    // Date range filter
+    if (filters.startDate != null) {
+      whereClauses.add('createdAt >= ?');
+      whereArgs.add(filters.startDate!.toIso8601String());
+    }
+    if (filters.endDate != null) {
+      whereClauses.add('createdAt <= ?');
+      whereArgs.add(filters.endDate!.toIso8601String());
+    }
+    
+    // Pinned filter
+    if (filters.isPinned != null) {
+      whereClauses.add('isPinned = ?');
+      whereArgs.add(filters.isPinned! ? 1 : 0);
+    }
+    
+    // Reminder filter
+    if (filters.hasReminder != null && filters.hasReminder!) {
+      whereClauses.add('reminderDateTime IS NOT NULL');
+    }
+    
+    // Tags filter
+    if (filters.tags != null && filters.tags!.isNotEmpty) {
+      final tagConditions = filters.tags!.map((tag) => "tags LIKE '%$tag%'").join(' OR ');
+      whereClauses.add('($tagConditions)');
+    }
+    
+    final result = await db.query(
+      'notes',
+      where: whereClauses.join(' AND '),
+      whereArgs: whereArgs,
+      orderBy: 'isPinned DESC, updatedAt DESC',
+    );
+    
+    List<Note> notes = result.map((map) => Note.fromMap(map)).toList();
+    
+    // Post-process attachment filter (needs join or separate query)
+    if (filters.hasAttachments != null && filters.hasAttachments!) {
+      notes = await Future.wait(
+        notes.map((note) async {
+          final attachments = await getAttachmentsByNote(note.id);
+          return attachments.isNotEmpty ? note : null;
+        }),
+      ).then((list) => list.whereType<Note>().toList());
+    }
+    
+    return notes;
   }
 
   // Get related notes based on shared tags

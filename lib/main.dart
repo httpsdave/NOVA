@@ -8,10 +8,12 @@ import 'screens/lock_screen.dart';
 import 'screens/onboarding_screen.dart';
 import 'services/notification_service.dart';
 import 'services/auth_service.dart';
+import 'services/widget_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await NotificationService.instance.initialize();
+  await WidgetService.instance.initialize();
   runApp(const NovaApp());
 }
 

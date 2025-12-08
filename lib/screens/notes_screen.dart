@@ -5,14 +5,17 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/note.dart';
 import '../models/notebook.dart';
 import '../models/sort_option.dart';
+import '../models/search_filters.dart';
 import '../services/database_service.dart';
 import '../services/notification_service.dart';
 import '../providers/theme_provider.dart';
+import '../widgets/search_filters_dialog.dart';
 import 'rich_note_editor_screen.dart';
 import 'trash_screen.dart';
 import 'notebooks_screen.dart';
 import 'security_settings_screen.dart';
 import 'statistics_screen.dart';
+import 'backup_restore_screen.dart';
 
 class NotesScreen extends StatefulWidget {
   const NotesScreen({super.key});
@@ -31,6 +34,7 @@ class _NotesScreenState extends State<NotesScreen> {
   SortOption _currentSort = SortOption.updatedDesc; // Default sort
   bool _isSelectionMode = false;
   final Set<String> _selectedNoteIds = {};
+  SearchFilters _searchFilters = SearchFilters();
 
   final List<Color> _noteColors = [
     Colors.white,
@@ -142,8 +146,8 @@ class _NotesScreenState extends State<NotesScreen> {
     }
   }
 
-  void _searchNotes(String query) {
-    if (query.isEmpty) {
+  void _searchNotes(String query) async {
+    if (query.isEmpty && !_searchFilters.hasActiveFilters) {
       setState(() {
         _filteredNotes = _notes;
         _applySorting();
@@ -151,13 +155,25 @@ class _NotesScreenState extends State<NotesScreen> {
       return;
     }
 
-    setState(() {
-      _filteredNotes = _notes.where((note) {
-        return note.title.toLowerCase().contains(query.toLowerCase()) ||
-            note.content.toLowerCase().contains(query.toLowerCase());
-      }).toList();
-      _applySorting();
-    });
+    if (_searchFilters.hasActiveFilters) {
+      // Use database search with filters
+      final results = await DatabaseService.instance.searchNotesWithFilters(query, _searchFilters);
+      setState(() {
+        _filteredNotes = results;
+        _applySorting();
+      });
+    } else {
+      // Simple local search
+      setState(() {
+        _filteredNotes = _notes.where((note) {
+          return note.title.toLowerCase().contains(query.toLowerCase()) ||
+              note.content.toLowerCase().contains(query.toLowerCase()) ||
+              note.description.toLowerCase().contains(query.toLowerCase()) ||
+              note.tags.any((tag) => tag.toLowerCase().contains(query.toLowerCase()));
+        }).toList();
+        _applySorting();
+      });
+    }
   }
 
   Future<void> _deleteNote(Note note) async {
@@ -588,6 +604,54 @@ class _NotesScreenState extends State<NotesScreen> {
                   tooltip: 'Select Multiple',
                   onPressed: _toggleSelectionMode,
                 ),
+                if (_isSearching)
+                  Stack(
+                    children: [
+                      IconButton(
+                        icon: Icon(
+                          Icons.filter_list,
+                          color: _searchFilters.hasActiveFilters 
+                              ? const Color(0xFF2DBD6C)
+                              : (isDark ? Colors.grey.shade300 : Colors.grey.shade700),
+                        ),
+                        tooltip: 'Filters',
+                        onPressed: () async {
+                          final filters = await showDialog<SearchFilters>(
+                            context: context,
+                            builder: (context) => SearchFiltersDialog(
+                              currentFilters: _searchFilters,
+                            ),
+                          );
+                          if (filters != null) {
+                            setState(() {
+                              _searchFilters = filters;
+                            });
+                            _searchNotes(_searchController.text);
+                          }
+                        },
+                      ),
+                      if (_searchFilters.hasActiveFilters)
+                        Positioned(
+                          right: 8,
+                          top: 8,
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: const BoxDecoration(
+                              color: Color(0xFF2DBD6C),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Text(
+                              '${_searchFilters.activeFilterCount}',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
                 IconButton(
                   icon: Icon(
                     _isSearching ? Icons.close : Icons.search_rounded,
@@ -598,6 +662,7 @@ class _NotesScreenState extends State<NotesScreen> {
                       if (_isSearching) {
                         _isSearching = false;
                         _searchController.clear();
+                        _searchFilters = SearchFilters();
                         _filteredNotes = _notes;
                         _applySorting();
                       } else {
@@ -720,6 +785,19 @@ class _NotesScreenState extends State<NotesScreen> {
                   context,
                   MaterialPageRoute(
                     builder: (context) => const StatisticsScreen(),
+                  ),
+                );
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.backup),
+              title: const Text('Backup & Restore'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const BackupRestoreScreen(),
                   ),
                 );
               },

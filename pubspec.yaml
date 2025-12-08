@@ -90,6 +90,13 @@ dependencies:
   
   # Drawing
   flutter_drawing_board: ^0.5.0
+  
+  # Backup & Restore
+  archive: ^3.6.1
+  file_picker: ^8.1.4
+  
+  # Home Screen Widgets
+  home_widget: ^0.6.0
 
 dev_dependencies:
   flutter_test:

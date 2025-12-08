@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Nova</string>
+    <string name="quick_note_widget_description">Quick access to create notes and see note count</string>
+    <string name="recent_notes_widget_description">View your 5 most recent notes</string>
+    <string name="pinned_notes_widget_description">View your pinned notes</string>
+</resources>
