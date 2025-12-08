@@ -80,6 +80,13 @@ dependencies:
   
   # Sharing
   share_plus: ^10.1.2
+  
+  # Audio recording
+  flutter_sound: ^9.2.13
+  permission_handler: ^11.3.1
+  
+  # Drawing
+  flutter_drawing_board: ^0.5.0
 
 dev_dependencies:
   flutter_test:

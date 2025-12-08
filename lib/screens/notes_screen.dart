@@ -29,7 +29,7 @@ class _NotesScreenState extends State<NotesScreen> {
   final TextEditingController _searchController = TextEditingController();
   SortOption _currentSort = SortOption.updatedDesc; // Default sort
   bool _isSelectionMode = false;
-  Set<String> _selectedNoteIds = {};
+  final Set<String> _selectedNoteIds = {};
 
   final List<Color> _noteColors = [
     Colors.white,

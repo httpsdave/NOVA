@@ -19,6 +19,9 @@ import '../services/notification_service.dart';
 import '../services/file_storage_service.dart';
 import 'notebooks_screen.dart';
 import 'version_history_screen.dart';
+import 'voice_recorder_screen.dart';
+import 'drawing_screen.dart';
+import '../widgets/audio_player_widget.dart';
 
 class RichNoteEditorScreen extends StatefulWidget {
   final Note? note;
@@ -191,6 +194,94 @@ class _RichNoteEditorScreenState extends State<RichNoteEditorScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error adding image: $e')),
         );
+      }
+    }
+  }
+
+  Future<void> _recordVoice() async {
+    final result = await Navigator.push<String>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const VoiceRecorderScreen(),
+      ),
+    );
+
+    if (result != null) {
+      final file = File(result);
+      final fileSize = await file.length();
+
+      final attachment = Attachment(
+        id: const Uuid().v4(),
+        noteId: widget.note?.id ?? '',
+        filePath: result,
+        fileName: path.basename(result),
+        fileType: 'audio',
+        fileSize: fileSize,
+        createdAt: DateTime.now(),
+      );
+
+      setState(() {
+        _attachments.add(attachment);
+      });
+    }
+  }
+
+  Future<void> _createDrawing() async {
+    final result = await Navigator.push<String>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const DrawingScreen(),
+      ),
+    );
+
+    if (result != null) {
+      final file = File(result);
+      final fileSize = await file.length();
+
+      final attachment = Attachment(
+        id: const Uuid().v4(),
+        noteId: widget.note?.id ?? '',
+        filePath: result,
+        fileName: path.basename(result),
+        fileType: 'drawing',
+        fileSize: fileSize,
+        createdAt: DateTime.now(),
+      );
+
+      setState(() {
+        _attachments.add(attachment);
+      });
+    }
+  }
+
+  Future<void> _deleteAttachment(Attachment attachment) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Attachment'),
+        content: const Text('Are you sure you want to delete this attachment?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      setState(() {
+        _attachments.remove(attachment);
+      });
+      // Delete file
+      final file = File(attachment.filePath);
+      if (await file.exists()) {
+        await file.delete();
       }
     }
   }
@@ -695,6 +786,63 @@ ${_descriptionController.text.isNotEmpty ? '${_descriptionController.text}\n\n' 
             ),
           ),
           
+          // Attachments section
+          if (_attachments.isNotEmpty)
+            Container(
+              color: Colors.transparent,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Attachments',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: isLightColor ? Colors.black87 : Colors.white,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  ..._attachments.map((attachment) {
+                    if (attachment.fileType == 'audio') {
+                      return AudioPlayerWidget(
+                        filePath: attachment.filePath,
+                        onDelete: () => _deleteAttachment(attachment),
+                      );
+                    } else if (attachment.fileType == 'image' || attachment.fileType == 'drawing') {
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        child: Stack(
+                          children: [
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: Image.file(
+                                File(attachment.filePath),
+                                width: double.infinity,
+                                fit: BoxFit.cover,
+                              ),
+                            ),
+                            Positioned(
+                              top: 8,
+                              right: 8,
+                              child: IconButton(
+                                icon: const Icon(Icons.close, color: Colors.white),
+                                style: IconButton.styleFrom(
+                                  backgroundColor: Colors.black54,
+                                ),
+                                onPressed: () => _deleteAttachment(attachment),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+                    return const SizedBox.shrink();
+                  }),
+                ],
+              ),
+            ),
+          
           // Bottom metadata bar
           Container(
             decoration: BoxDecoration(
@@ -796,6 +944,22 @@ ${_descriptionController.text.isNotEmpty ? '${_descriptionController.text}\n\n' 
             onTap: () {
               Navigator.pop(context);
               _pickImage();
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.mic),
+            title: const Text('Record Voice'),
+            onTap: () {
+              Navigator.pop(context);
+              _recordVoice();
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.draw),
+            title: const Text('Create Drawing'),
+            onTap: () {
+              Navigator.pop(context);
+              _createDrawing();
             },
           ),
         ],

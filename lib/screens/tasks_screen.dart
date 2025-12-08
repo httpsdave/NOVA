@@ -449,8 +449,8 @@ class _TasksScreenState extends State<TasksScreen> {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _showTaskDialog(),
-        child: const Icon(Icons.add),
         tooltip: 'New Task',
+        child: const Icon(Icons.add),
       ),
     );
   }
