@@ -48,7 +48,7 @@
         
         <!-- Widget Providers -->
         <receiver 
-            android:name=".QuickNoteWidgetProvider"
+            android:name="com.example.nova.QuickNoteWidgetProvider"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
@@ -59,7 +59,7 @@
         </receiver>
         
         <receiver 
-            android:name=".RecentNotesWidgetProvider"
+            android:name="com.example.nova.RecentNotesWidgetProvider"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
@@ -70,7 +70,7 @@
         </receiver>
         
         <receiver 
-            android:name=".PinnedNotesWidgetProvider"
+            android:name="com.example.nova.PinnedNotesWidgetProvider"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
@@ -82,7 +82,7 @@
         
         <!-- ListView Service for Recent and Pinned Notes Widgets -->
         <service
-            android:name=".NotesListService"
+            android:name="com.example.nova.NotesListService"
             android:permission="android.permission.BIND_REMOTEVIEWS"
             android:exported="false" />
         
