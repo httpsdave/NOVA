@@ -356,6 +356,14 @@ class _RichNoteEditorScreenState extends State<RichNoteEditorScreen> {
         );
         await DatabaseService.instance.updateNote(updatedNote);
         
+        // Save any new attachments
+        for (final attachment in _attachments) {
+          if (attachment.noteId == 'temp') {
+            final attachmentWithNoteId = attachment.copyWith(noteId: updatedNote.id);
+            await DatabaseService.instance.createAttachment(attachmentWithNoteId);
+          }
+        }
+        
         await FileStorageService.instance.saveNoteAsHtml(updatedNote.copyWith(htmlContent: htmlContent));
 
         await NotificationService.instance.cancelNotification(widget.note!.id.hashCode);

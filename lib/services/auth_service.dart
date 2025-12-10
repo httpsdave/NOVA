@@ -66,7 +66,10 @@ class AuthService {
   // Check if biometrics are available
   Future<bool> canUseBiometrics() async {
     try {
-      return await _localAuth.canCheckBiometrics;
+      final canCheckBiometrics = await _localAuth.canCheckBiometrics;
+      final isDeviceSupported = await _localAuth.isDeviceSupported();
+      final availableBiometrics = await _localAuth.getAvailableBiometrics();
+      return canCheckBiometrics && isDeviceSupported && availableBiometrics.isNotEmpty;
     } catch (e) {
       return false;
     }

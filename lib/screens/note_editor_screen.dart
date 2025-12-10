@@ -267,6 +267,14 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
       await DatabaseService.instance.updateNote(updatedNote);
       _currentNote = updatedNote; // Store for PDF export
       
+      // Save any new attachments
+      for (final attachment in _attachments) {
+        if (attachment.noteId == 'temp') {
+          final attachmentWithNoteId = attachment.copyWith(noteId: updatedNote.id);
+          await DatabaseService.instance.createAttachment(attachmentWithNoteId);
+        }
+      }
+      
       // Update HTML file
       await FileStorageService.instance.saveNoteAsHtml(updatedNote);
 

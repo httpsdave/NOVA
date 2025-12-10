@@ -1,6 +1,28 @@
 # Nova Changelog
 
-## Version 1.1.0 (2024)
+## Version 1.1.0 (December 10, 2025)
+
+### 🐛 Critical Bug Fixes
+
+#### Reminder & Notification Issues
+- **Fixed immediate notifications**: Reminders set for NOW or within 1 minute now trigger immediately instead of being scheduled in the past
+- **Calendar reminders**: Fixed error when saving date reminders on calendar
+- **Notification timing**: Improved notification scheduling reliability
+
+#### Note Editing & Auto-save
+- **Auto-save on back**: Notes now automatically save when pressing the back button (not just the save button)
+- **Rich text editor**: Added PopScope handler for auto-save in rich note editor
+- **Data preservation**: Prevents accidental data loss from unsaved changes
+
+#### Biometric Authentication
+- **Fixed biometric lock**: Resolved failure when trying to enable biometric authentication
+- **Enhanced validation**: Now properly checks device capability, support, and enrollment status
+- **Better error handling**: Improved feedback when biometrics are unavailable
+
+#### Attachment Handling
+- **Fixed image saving**: Images and voice recordings now properly save on existing notes (not just new ones)
+- **Attachment persistence**: New attachments are correctly associated with note ID during updates
+- **Applies to both editors**: Fixed in both standard and rich text note editors
 
 ### 🎉 Major New Features
 

@@ -78,16 +78,26 @@ class NotificationService {
       iOS: iosDetails,
     );
 
-    await _notifications.zonedSchedule(
-      id,
-      title,
-      body,
-      tz.TZDateTime.from(scheduledDate, tz.local),
-      details,
-      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-      uiLocalNotificationDateInterpretation:
-          UILocalNotificationDateInterpretation.absoluteTime,
-    );
+    // Check if scheduled date is in the past or very close to now (within 1 minute)
+    final now = DateTime.now();
+    final difference = scheduledDate.difference(now);
+    
+    if (difference.inSeconds <= 60) {
+      // Show immediate notification
+      await _notifications.show(id, title, body, details);
+    } else {
+      // Schedule for future
+      await _notifications.zonedSchedule(
+        id,
+        title,
+        body,
+        tz.TZDateTime.from(scheduledDate, tz.local),
+        details,
+        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        uiLocalNotificationDateInterpretation:
+            UILocalNotificationDateInterpretation.absoluteTime,
+      );
+    }
   }
 
   Future<void> cancelNotification(int id) async {
