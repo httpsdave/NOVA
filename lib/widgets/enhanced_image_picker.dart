@@ -215,14 +215,14 @@ class _ImageProcessingDialogState extends State<_ImageProcessingDialog> {
             onChanged: (value) {
               setState(() => _enableCrop = value);
             },
-            activeColor: const Color(0xFF2DBD6C),
+            activeThumbColor: const Color(0xFF2DBD6C),
           ),
 
           const SizedBox(height: 16),
 
           // Quality slider
           Text(
-            'Image Quality: ${_quality}%',
+            'Image Quality: $_quality%',
             style: TextStyle(
               fontWeight: FontWeight.w600,
               color: isDark ? Colors.white : Colors.black87,
@@ -234,7 +234,7 @@ class _ImageProcessingDialogState extends State<_ImageProcessingDialog> {
             min: 50,
             max: 100,
             divisions: 10,
-            label: '${_quality}%',
+            label: '$_quality%',
             activeColor: const Color(0xFF2DBD6C),
             onChanged: (value) {
               setState(() => _quality = value.toInt());

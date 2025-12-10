@@ -11,13 +11,21 @@ import '../models/attachment.dart';
 import '../services/database_service.dart';
 import '../services/notification_service.dart';
 import '../services/file_storage_service.dart';
+import '../services/pdf_export_service.dart';
+import '../models/note_template.dart';
 import 'notebooks_screen.dart';
 
 class NoteEditorScreen extends StatefulWidget {
   final Note? note;
   final List<Color> availableColors;
+  final NoteTemplate? initialTemplate;
 
-  const NoteEditorScreen({super.key, this.note, required this.availableColors});
+  const NoteEditorScreen({
+    super.key,
+    this.note,
+    required this.availableColors,
+    this.initialTemplate,
+  });
 
   @override
   State<NoteEditorScreen> createState() => _NoteEditorScreenState();
@@ -36,20 +44,31 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
   List<Notebook> _notebooks = [];
   List<Attachment> _attachments = [];
   final ImagePicker _imagePicker = ImagePicker();
+  Note? _currentNote;
 
   @override
   void initState() {
     super.initState();
-    _titleController = TextEditingController(text: widget.note?.title ?? '');
-    _descriptionController = TextEditingController(text: widget.note?.description ?? '');
-    _contentController = TextEditingController(
-      text: widget.note?.content ?? '',
-    );
-    _selectedColor = widget.note?.color ?? 0xFFFFFFFF;
-    _reminderDateTime = widget.note?.reminderDateTime;
     
-    if (widget.note?.tags != null) {
-      _tags.addAll(widget.note!.tags);
+    // Initialize with template if provided
+    if (widget.initialTemplate != null && widget.note == null) {
+      _titleController = TextEditingController(text: widget.initialTemplate!.name);
+      _contentController = TextEditingController(text: widget.initialTemplate!.content);
+      _descriptionController = TextEditingController(text: widget.initialTemplate!.description);
+      _selectedColor = widget.initialTemplate!.color;
+      _tags.addAll(widget.initialTemplate!.tags);
+    } else {
+      _titleController = TextEditingController(text: widget.note?.title ?? '');
+      _descriptionController = TextEditingController(text: widget.note?.description ?? '');
+      _contentController = TextEditingController(
+        text: widget.note?.content ?? '',
+      );
+      _selectedColor = widget.note?.color ?? 0xFFFFFFFF;
+      _reminderDateTime = widget.note?.reminderDateTime;
+      
+      if (widget.note?.tags != null) {
+        _tags.addAll(widget.note!.tags);
+      }
     }
     
     if (widget.note != null && widget.note!.tags.isNotEmpty) {
@@ -209,6 +228,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
         notebookId: _selectedNotebook?.id,
       );
       await DatabaseService.instance.createNote(newNote);
+      _currentNote = newNote; // Store for PDF export
       
       // Save attachments
       for (final attachment in _attachments) {
@@ -220,6 +240,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
       final filePath = await FileStorageService.instance.saveNoteAsHtml(newNote);
       final noteWithPath = newNote.copyWith(filePath: filePath);
       await DatabaseService.instance.updateNote(noteWithPath);
+      _currentNote = noteWithPath; // Update with file path
 
       if (_reminderDateTime != null &&
           _reminderDateTime!.isAfter(DateTime.now())) {
@@ -244,6 +265,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
         notebookId: _selectedNotebook?.id,
       );
       await DatabaseService.instance.updateNote(updatedNote);
+      _currentNote = updatedNote; // Store for PDF export
       
       // Update HTML file
       await FileStorageService.instance.saveNoteAsHtml(updatedNote);
@@ -311,6 +333,62 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
     setState(() {
       _reminderDateTime = null;
     });
+  }
+
+  Future<void> _exportToPdf() async {
+    await _saveNote();
+    if (_currentNote == null) return;
+
+    try {
+      final file = await PdfExportService.instance.exportNoteToPdf(_currentNote!);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('PDF exported to ${file.path}'),
+            action: SnackBarAction(
+              label: 'OK',
+              onPressed: () {},
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error exporting PDF: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _sharePdf() async {
+    await _saveNote();
+    if (_currentNote == null) return;
+
+    try {
+      await PdfExportService.instance.sharePdf(_currentNote!);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error sharing PDF: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _printNote() async {
+    await _saveNote();
+    if (_currentNote == null) return;
+
+    try {
+      await PdfExportService.instance.printPdf(_currentNote!);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error printing: $e')),
+        );
+      }
+    }
   }
 
   void _addTag() {
@@ -461,6 +539,56 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
             },
           ),
           actions: [
+            // Export menu
+            PopupMenuButton<String>(
+              icon: Icon(Icons.more_vert, size: 22, color: textColor),
+              tooltip: 'More options',
+              onSelected: (value) async {
+                switch (value) {
+                  case 'export_pdf':
+                    await _exportToPdf();
+                    break;
+                  case 'share_pdf':
+                    await _sharePdf();
+                    break;
+                  case 'print':
+                    await _printNote();
+                    break;
+                }
+              },
+              itemBuilder: (context) => [
+                const PopupMenuItem(
+                  value: 'export_pdf',
+                  child: Row(
+                    children: [
+                      Icon(Icons.picture_as_pdf, size: 20),
+                      SizedBox(width: 12),
+                      Text('Export to PDF'),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'share_pdf',
+                  child: Row(
+                    children: [
+                      Icon(Icons.share, size: 20),
+                      SizedBox(width: 12),
+                      Text('Share as PDF'),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'print',
+                  child: Row(
+                    children: [
+                      Icon(Icons.print, size: 20),
+                      SizedBox(width: 12),
+                      Text('Print Note'),
+                    ],
+                  ),
+                ),
+              ],
+            ),
             IconButton(
               icon: Icon(Icons.attach_file_rounded, size: 22, color: textColor),
               onPressed: _pickImage,

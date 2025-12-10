@@ -1,12 +1,12 @@
 package com.example.nova
 
+import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.widget.RemoteViews
-import es.antonborri.home_widget.HomeWidgetPlugin
 
 class RecentNotesWidgetProvider : AppWidgetProvider() {
     override fun onUpdate(
@@ -28,7 +28,12 @@ class RecentNotesWidgetProvider : AppWidgetProvider() {
             
             // Set up click handler for list items
             val clickIntent = Intent(context, MainActivity::class.java)
-            val clickPendingIntent = HomeWidgetPlugin.getPendingIntentForOpeningApp(context)
+            val clickPendingIntent = PendingIntent.getActivity(
+                context,
+                0,
+                clickIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
             views.setPendingIntentTemplate(R.id.notes_list, clickPendingIntent)
             
             appWidgetManager.updateAppWidget(widgetId, views)

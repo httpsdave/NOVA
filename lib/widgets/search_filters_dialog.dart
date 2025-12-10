@@ -104,7 +104,7 @@ class _SearchFiltersDialogState extends State<SearchFiltersDialog> {
                     _buildSectionTitle('Notebook'),
                     const SizedBox(height: 8),
                     DropdownButtonFormField<String?>(
-                      value: _filters.notebookId,
+                      initialValue: _filters.notebookId,
                       decoration: InputDecoration(
                         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                         border: OutlineInputBorder(

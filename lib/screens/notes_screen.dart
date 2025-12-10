@@ -16,6 +16,7 @@ import 'notebooks_screen.dart';
 import 'security_settings_screen.dart';
 import 'statistics_screen.dart';
 import 'backup_restore_screen.dart';
+import 'template_selection_screen.dart';
 
 class NotesScreen extends StatefulWidget {
   const NotesScreen({super.key});
@@ -942,67 +943,18 @@ class _NotesScreenState extends State<NotesScreen> {
   }
 
   void _showTemplateOptions() {
-    showModalBottomSheet(
-      context: context,
-      builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.business_center),
-              title: const Text('Meeting Notes'),
-              subtitle: const Text('Date, attendees, agenda, action items'),
-              onTap: () {
-                Navigator.pop(context);
-                _openTemplateNote('meeting');
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.checklist),
-              title: const Text('To-Do List'),
-              subtitle: const Text('Quick checklist template'),
-              onTap: () {
-                Navigator.pop(context);
-                _openTemplateNote('todo');
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.book),
-              title: const Text('Journal Entry'),
-              subtitle: const Text('Daily journal with prompts'),
-              onTap: () {
-                Navigator.pop(context);
-                _openTemplateNote('journal');
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.restaurant),
-              title: const Text('Recipe'),
-              subtitle: const Text('Ingredients and instructions'),
-              onTap: () {
-                Navigator.pop(context);
-                _openTemplateNote('recipe');
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Future<void> _openTemplateNote(String templateType) async {
-    final result = await Navigator.push(
+    Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => RichNoteEditorScreen(
+        builder: (context) => TemplateSelectionScreen(
           availableColors: _noteColors,
-          templateType: templateType,
         ),
       ),
-    );
-    if (result == true) {
-      _loadNotes();
-    }
+    ).then((result) {
+      if (result == true) {
+        _loadNotes();
+      }
+    });
   }
 
   Widget _buildNoteCard(Note note, bool isDark) {
