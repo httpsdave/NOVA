@@ -87,14 +87,27 @@ class AuthService {
   // Authenticate with biometrics
   Future<bool> authenticateWithBiometrics() async {
     try {
-      return await _localAuth.authenticate(
+      // Check if device supports biometrics first
+      final canCheck = await canUseBiometrics();
+      if (!canCheck) {
+        print('Biometric check failed: Device not supported or no biometrics enrolled');
+        return false;
+      }
+      
+      final authenticated = await _localAuth.authenticate(
         localizedReason: 'Authenticate to access Nova',
         options: const AuthenticationOptions(
           stickyAuth: true,
           biometricOnly: false,
+          useErrorDialogs: true,
+          sensitiveTransaction: false,
         ),
       );
+      
+      print('Biometric authentication result: $authenticated');
+      return authenticated;
     } catch (e) {
+      print('Biometric authentication error: $e');
       return false;
     }
   }

@@ -268,12 +268,28 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
       _currentNote = updatedNote; // Store for PDF export
       
       // Save any new attachments
+      print('Total attachments in list: ${_attachments.length}');
+      int savedCount = 0;
+      final List<Attachment> updatedAttachments = [];
+      
       for (final attachment in _attachments) {
+        print('Checking attachment: noteId=${attachment.noteId}, fileName=${attachment.fileName}');
         if (attachment.noteId == 'temp') {
           final attachmentWithNoteId = attachment.copyWith(noteId: updatedNote.id);
           await DatabaseService.instance.createAttachment(attachmentWithNoteId);
+          updatedAttachments.add(attachmentWithNoteId);
+          savedCount++;
+          print('Saved attachment: ${attachment.fileName}');
+        } else {
+          updatedAttachments.add(attachment);
         }
       }
+      print('Saved $savedCount new attachments');
+      
+      // Update the attachments list in memory
+      setState(() {
+        _attachments = updatedAttachments;
+      });
       
       // Update HTML file
       await FileStorageService.instance.saveNoteAsHtml(updatedNote);

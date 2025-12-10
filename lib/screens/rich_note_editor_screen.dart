@@ -178,7 +178,7 @@ class _RichNoteEditorScreenState extends State<RichNoteEditorScreen> {
 
       final attachment = Attachment(
         id: const Uuid().v4(),
-        noteId: widget.note?.id ?? '',
+        noteId: 'temp', // Will be updated when note is saved
         filePath: newPath,
         fileName: fileName,
         fileType: 'image',
@@ -188,6 +188,7 @@ class _RichNoteEditorScreenState extends State<RichNoteEditorScreen> {
 
       setState(() {
         _attachments.add(attachment);
+        print('Added image attachment. Total attachments: ${_attachments.length}');
       });
     } catch (e) {
       if (mounted) {
@@ -212,7 +213,7 @@ class _RichNoteEditorScreenState extends State<RichNoteEditorScreen> {
 
       final attachment = Attachment(
         id: const Uuid().v4(),
-        noteId: widget.note?.id ?? '',
+        noteId: 'temp', // Will be updated when note is saved
         filePath: result,
         fileName: path.basename(result),
         fileType: 'audio',
@@ -222,6 +223,7 @@ class _RichNoteEditorScreenState extends State<RichNoteEditorScreen> {
 
       setState(() {
         _attachments.add(attachment);
+        print('Added voice attachment. Total attachments: ${_attachments.length}');
       });
     }
   }
@@ -240,7 +242,7 @@ class _RichNoteEditorScreenState extends State<RichNoteEditorScreen> {
 
       final attachment = Attachment(
         id: const Uuid().v4(),
-        noteId: widget.note?.id ?? '',
+        noteId: 'temp', // Will be updated when note is saved
         filePath: result,
         fileName: path.basename(result),
         fileType: 'drawing',
@@ -250,6 +252,7 @@ class _RichNoteEditorScreenState extends State<RichNoteEditorScreen> {
 
       setState(() {
         _attachments.add(attachment);
+        print('Added drawing attachment. Total attachments: ${_attachments.length}');
       });
     }
   }
@@ -357,12 +360,28 @@ class _RichNoteEditorScreenState extends State<RichNoteEditorScreen> {
         await DatabaseService.instance.updateNote(updatedNote);
         
         // Save any new attachments
+        print('Total attachments in list: ${_attachments.length}');
+        int savedCount = 0;
+        final List<Attachment> updatedAttachments = [];
+        
         for (final attachment in _attachments) {
+          print('Checking attachment: noteId=${attachment.noteId}, fileName=${attachment.fileName}');
           if (attachment.noteId == 'temp') {
             final attachmentWithNoteId = attachment.copyWith(noteId: updatedNote.id);
             await DatabaseService.instance.createAttachment(attachmentWithNoteId);
+            updatedAttachments.add(attachmentWithNoteId);
+            savedCount++;
+            print('Saved attachment: ${attachment.fileName}');
+          } else {
+            updatedAttachments.add(attachment);
           }
         }
+        print('Saved $savedCount new attachments');
+        
+        // Update the attachments list in memory
+        setState(() {
+          _attachments = updatedAttachments;
+        });
         
         await FileStorageService.instance.saveNoteAsHtml(updatedNote.copyWith(htmlContent: htmlContent));
 
